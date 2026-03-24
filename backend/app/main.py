@@ -9,7 +9,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
 from .database import engine, Base
-from .routes import contents, files, comments
+from .routes import contents, files, comments, script_briefs, dev_tasks
 from .auth import create_token, USERS, get_current_user, CurrentUser
 
 # Create tables
@@ -84,6 +84,8 @@ async def get_me(user: CurrentUser = Depends(get_current_user)):
 app.include_router(contents.router)
 app.include_router(files.router)
 app.include_router(comments.router)
+app.include_router(script_briefs.router)
+app.include_router(dev_tasks.router)
 
 @app.get("/api/health")
 def health_check():

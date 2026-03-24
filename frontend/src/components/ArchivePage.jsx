@@ -1,14 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Grid3X3, List, ExternalLink } from 'lucide-react'
+import { Download, Grid3X3, List, ExternalLink, Code2, Clock } from 'lucide-react'
 import { api } from '../api/client'
+import { useUser } from '../context/UserContext'
 import { BRANDS, TYPES, CHANNELS, SOURCES } from '../api/constants'
 import Tag from './Tag'
 import SmartThumb from './SmartThumb'
 
 export default function ArchivePage() {
+  const { userId, isAdmin } = useUser()
+  const showDevTasks = userId === 'federico' || isAdmin
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
+  const [completedDevTasks, setCompletedDevTasks] = useState([])
   const [filters, setFilters] = useState({ brand: '', content_type: '', channel: '', source: '' })
   const [viewMode, setViewMode] = useState('table')
   const navigate = useNavigate()
@@ -16,7 +20,10 @@ export default function ArchivePage() {
   const load = useCallback(() => {
     api.listContents({ ...filters, archived: true }).then(setItems)
     api.getArchiveSummary().then(setSummary)
-  }, [filters])
+    if (showDevTasks) {
+      api.listDevTasks({ status: 'completato' }).then(setCompletedDevTasks).catch(() => {})
+    }
+  }, [filters, showDevTasks])
 
   useEffect(() => { load() }, [load])
 
@@ -143,6 +150,44 @@ export default function ArchivePage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Dev Tasks completati di Federico */}
+      {showDevTasks && completedDevTasks.length > 0 && (
+        <div className="mt-10">
+          <h3 className="text-lg font-bold text-stone-700 flex items-center gap-2 mb-1">
+            <Code2 size={20} className="text-orange-500" />
+            Task di Sviluppo Completati
+          </h3>
+          <p className="text-xs text-stone-400 mb-4">Task di programmazione completati da Federico</p>
+          <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-stone-50">
+                  {['Task', 'Descrizione', 'Tempo stimato', 'Completato'].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-[11px] uppercase tracking-wide text-stone-500 font-semibold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {completedDevTasks.map(task => (
+                  <tr key={task.id} className="border-t border-stone-100">
+                    <td className="px-4 py-3 text-sm font-medium text-stone-700">{task.title}</td>
+                    <td className="px-4 py-3 text-sm text-stone-500 max-w-xs truncate">{task.description || '—'}</td>
+                    <td className="px-4 py-3 text-sm text-stone-500">
+                      {task.estimated_hours ? (
+                        <span className="flex items-center gap-1"><Clock size={12} /> {task.estimated_hours}h</span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-stone-500">
+                      {task.completed_at ? new Date(task.completed_at).toLocaleDateString('it-IT') : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

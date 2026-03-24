@@ -13,6 +13,7 @@ class ContentCreate(BaseModel):
     script: Optional[str] = None
     notes: Optional[str] = None
     deadline: Optional[datetime] = None
+    script_brief_id: Optional[int] = None
 
     @field_validator('title')
     @classmethod
@@ -49,6 +50,7 @@ class ContentUpdate(BaseModel):
     notes: Optional[str] = None
     deadline: Optional[datetime] = None
     drive_link: Optional[str] = None
+    script_brief_id: Optional[int] = None
 
     @field_validator('title')
     @classmethod
@@ -99,6 +101,7 @@ class ContentResponse(BaseModel):
     has_thumbnail: bool = False
     # file_path removed — never expose internal server paths
     drive_link: Optional[str]
+    script_brief_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime]
@@ -136,6 +139,93 @@ class ActivityResponse(BaseModel):
     content_id: int
     action: str
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── Script / Brief ──────────────────────────────────────
+
+class ScriptBriefCreate(BaseModel):
+    title: str
+    brief_type: str  # "script" or "brief"
+    brand: str
+    content: str
+    notes: Optional[str] = None
+    assigned_to: Optional[str] = None
+
+    @field_validator('title')
+    @classmethod
+    def title_length(cls, v):
+        v = v.strip()
+        if not v or len(v) > 255:
+            raise ValueError('Il titolo deve avere tra 1 e 255 caratteri')
+        return v
+
+    @field_validator('content')
+    @classmethod
+    def content_length(cls, v):
+        v = v.strip()
+        if not v or len(v) > 50000:
+            raise ValueError('Il contenuto deve avere tra 1 e 50.000 caratteri')
+        return v
+
+
+class ScriptBriefUpdate(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    notes: Optional[str] = None
+    assigned_to: Optional[str] = None
+    is_used: Optional[bool] = None
+
+
+class ScriptBriefResponse(BaseModel):
+    id: int
+    title: str
+    brief_type: str
+    brand: str
+    content: str
+    notes: Optional[str]
+    assigned_to: Optional[str]
+    is_used: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# ── Dev Tasks (Federico) ───────────────────────────────────
+
+class DevTaskCreate(BaseModel):
+    title: str
+    description: Optional[str] = None
+    estimated_hours: Optional[int] = None
+
+    @field_validator('title')
+    @classmethod
+    def title_length(cls, v):
+        v = v.strip()
+        if not v or len(v) > 255:
+            raise ValueError('Il titolo deve avere tra 1 e 255 caratteri')
+        return v
+
+
+class DevTaskUpdate(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    estimated_hours: Optional[int] = None
+    status: Optional[str] = None
+
+
+class DevTaskResponse(BaseModel):
+    id: int
+    title: str
+    description: Optional[str]
+    estimated_hours: Optional[int]
+    status: str
+    created_at: datetime
+    completed_at: Optional[datetime]
 
     class Config:
         from_attributes = True

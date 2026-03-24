@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Text, Enum, DateTime, Integer, Boolean
+from sqlalchemy import Column, String, Text, Enum, DateTime, Integer, Boolean, ForeignKey
 from .database import Base
 
 
@@ -38,6 +38,31 @@ class AssigneeEnum(str, enum.Enum):
     MARZIA = "marzia"
 
 
+class BriefTypeEnum(str, enum.Enum):
+    SCRIPT = "script"
+    BRIEF = "brief"
+
+
+class DevTaskStatusEnum(str, enum.Enum):
+    IN_CORSO = "in-corso"
+    COMPLETATO = "completato"
+
+
+class ScriptBrief(Base):
+    __tablename__ = "script_briefs"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    brief_type = Column(Enum(BriefTypeEnum), nullable=False)
+    brand = Column(Enum(BrandEnum), nullable=False)
+    content = Column(Text, nullable=False)
+    notes = Column(Text, nullable=True)
+    assigned_to = Column(Enum(AssigneeEnum), nullable=True)
+    is_used = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
 class Content(Base):
     __tablename__ = "contents"
 
@@ -56,6 +81,7 @@ class Content(Base):
     file_path = Column(String(500), nullable=True)
     thumbnail_path = Column(String(500), nullable=True)
     drive_link = Column(String(500), nullable=True)
+    script_brief_id = Column(Integer, ForeignKey("script_briefs.id"), nullable=True)
 
     @property
     def has_thumbnail(self) -> bool:
@@ -74,6 +100,18 @@ class Activity(Base):
     content_id = Column(Integer, nullable=False, index=True)
     action = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class DevTask(Base):
+    __tablename__ = "dev_tasks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    estimated_hours = Column(Integer, nullable=True)
+    status = Column(Enum(DevTaskStatusEnum), nullable=False, default=DevTaskStatusEnum.IN_CORSO)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    completed_at = Column(DateTime, nullable=True)
 
 
 class Comment(Base):

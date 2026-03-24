@@ -98,6 +98,29 @@ export const api = {
     return URL.createObjectURL(blob)
   },
 
+  // Script / Brief
+  listScriptBriefs: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null)
+    ).toString()
+    return request(`/script-briefs/${qs ? '?' + qs : ''}`)
+  },
+  getScriptBrief: (id) => request(`/script-briefs/${id}`),
+  createScriptBrief: (data) => request('/script-briefs/', { method: 'POST', body: JSON.stringify(data) }),
+  updateScriptBrief: (id, data) => request(`/script-briefs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteScriptBrief: (id) => request(`/script-briefs/${id}`, { method: 'DELETE' }),
+
+  // Dev Tasks (Federico)
+  listDevTasks: (params = {}) => {
+    const qs = new URLSearchParams(
+      Object.entries(params).filter(([, v]) => v !== '' && v != null)
+    ).toString()
+    return request(`/dev-tasks/${qs ? '?' + qs : ''}`)
+  },
+  createDevTask: (data) => request('/dev-tasks/', { method: 'POST', body: JSON.stringify(data) }),
+  updateDevTask: (id, data) => request(`/dev-tasks/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteDevTask: (id) => request(`/dev-tasks/${id}`, { method: 'DELETE' }),
+
   // Activities & Comments
   getActivities: (contentId) => request(`/contents/${contentId}/activities`),
   getComments: (contentId) => request(`/contents/${contentId}/comments`),

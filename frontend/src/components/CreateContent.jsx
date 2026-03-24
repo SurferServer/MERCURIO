@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Save, RotateCcw } from 'lucide-react'
+import { Save, RotateCcw, FileText } from 'lucide-react'
 import { api } from '../api/client'
+import { BRANDS } from '../api/constants'
 
 const EMPTY = {
   title: '',
@@ -13,14 +14,46 @@ const EMPTY = {
   script: '',
   notes: '',
   deadline: '',
+  script_brief_id: '',
 }
 
 export default function CreateContent({ showToast }) {
   const [form, setForm] = useState({ ...EMPTY })
   const [saving, setSaving] = useState(false)
+  const [scriptBriefs, setScriptBriefs] = useState([])
   const navigate = useNavigate()
 
+  // Load available script/briefs
+  useEffect(() => {
+    api.listScriptBriefs({ available: true }).then(setScriptBriefs).catch(() => {})
+  }, [])
+
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
+
+  const handleSelectScriptBrief = (e) => {
+    const sbId = e.target.value
+    if (!sbId) {
+      setForm({ ...form, script_brief_id: '' })
+      return
+    }
+    const sb = scriptBriefs.find(s => s.id === parseInt(sbId))
+    if (sb) {
+      setForm({
+        ...form,
+        script_brief_id: sbId,
+        script: sb.content,
+        brand: sb.brand,
+        content_type: sb.brief_type === 'script' ? 'video' : 'grafica',
+        assigned_to: sb.assigned_to || form.assigned_to,
+        notes: sb.notes ? (form.notes ? form.notes + '\n' + sb.notes : sb.notes) : form.notes,
+      })
+    }
+  }
+
+  // Filter script/briefs matching selected brand
+  const filteredSB = scriptBriefs.filter(sb =>
+    !form.brand || sb.brand === form.brand
+  )
 
   const handleSave = async () => {
     if (!form.title.trim()) {
@@ -33,6 +66,7 @@ export default function CreateContent({ showToast }) {
         ...form,
         assigned_to: form.assigned_to || null,
         deadline: form.deadline ? new Date(form.deadline).toISOString() : null,
+        script_brief_id: form.script_brief_id ? parseInt(form.script_brief_id) : null,
       }
       const created = await api.createContent(payload)
       showToast('Contenuto salvato!')
@@ -101,6 +135,26 @@ export default function CreateContent({ showToast }) {
             <label className="block text-sm font-semibold mb-1.5 text-stone-700">Scadenza</label>
             <input type="date" value={form.deadline} onChange={set('deadline')} className={inputCls} />
           </div>
+          {scriptBriefs.length > 0 && (
+            <div className="md:col-span-2">
+              <label className="block text-sm font-semibold mb-1.5 text-stone-700">
+                <FileText size={14} className="inline mr-1.5 -mt-0.5" />
+                Collega Script / Brief esistente
+              </label>
+              <select value={form.script_brief_id} onChange={handleSelectScriptBrief} className={inputCls}>
+                <option value="">Nessuno (scrivi manualmente)</option>
+                {filteredSB.map(sb => (
+                  <option key={sb.id} value={sb.id}>
+                    [{sb.brief_type === 'script' ? 'Script' : 'Brief'}] {sb.title}
+                    {sb.assigned_to ? ` — ${sb.assigned_to}` : ''}
+                  </option>
+                ))}
+              </select>
+              {form.script_brief_id && (
+                <p className="text-xs text-accent mt-1">Lo script/brief selezionato verrà collegato a questo contenuto.</p>
+              )}
+            </div>
+          )}
           <div className="md:col-span-2">
             <label className="block text-sm font-semibold mb-1.5 text-stone-700">Script / Brief</label>
             <textarea value={form.script} onChange={set('script')} placeholder="Scrivi qui lo script del video o il brief della grafica..." rows={6} className={`${inputCls} resize-y`} />

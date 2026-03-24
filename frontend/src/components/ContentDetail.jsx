@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock } from 'lucide-react'
+import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS, SOURCES, STATUSES } from '../api/constants'
 import { useUser } from '../context/UserContext'
@@ -11,16 +11,18 @@ import SmartThumb from './SmartThumb'
 export default function ContentDetail({ showToast }) {
   const { id } = useParams()
   const navigate = useNavigate()
-  const fileInput = useRef(null)
+  const dropZoneInput = useRef(null)
   const { isAdmin, isMarketing, user, userId } = useUser()
   const [item, setItem] = useState(null)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState({})
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const [activities, setActivities] = useState([])
   const [comments, setComments] = useState([])
   const [newComment, setNewComment] = useState('')
   const [thumbUrl, setThumbUrl] = useState(null)
+  const [linkedSB, setLinkedSB] = useState(null)
 
   const loadAll = () => {
     api.getContent(id).then(data => {
@@ -41,6 +43,12 @@ export default function ContentDetail({ showToast }) {
         })
       } else {
         setThumbUrl(null)
+      }
+      // Load linked script/brief
+      if (data.script_brief_id) {
+        api.getScriptBrief(data.script_brief_id).then(setLinkedSB).catch(() => setLinkedSB(null))
+      } else {
+        setLinkedSB(null)
       }
     }).catch(() => navigate('/board'))
     api.getActivities(id).then(setActivities).catch(() => {})
@@ -108,6 +116,33 @@ export default function ContentDetail({ showToast }) {
       api.getComments(id).then(setComments)
     } catch (err) { showToast('Errore invio commento', 'error') }
   }
+
+  const handleDrop = async (e) => {
+    e.preventDefault()
+    setDragOver(false)
+    const file = e.dataTransfer.files[0]
+    if (!file) return
+    setUploading(true)
+    try {
+      await api.uploadFile(id, file)
+      const updated = await api.getContent(id)
+      setItem(updated)
+      if (updated.has_thumbnail) {
+        const url = await api.getThumbnail(id)
+        if (url) setThumbUrl(url)
+      }
+      showToast('File caricato!')
+    } catch (err) { showToast('Upload fallito', 'error') }
+    finally { setUploading(false) }
+  }
+
+  const isCollaborator = !isAdmin && !isMarketing
+  const isAssignedToMe = item?.assigned_to === userId
+  const showUploadZone = !isMarketing && (
+    !item?.file_name ||
+    (isCollaborator && isAssignedToMe) ||
+    isAdmin
+  )
 
   return (
     <div className="max-w-4xl">
@@ -194,6 +229,17 @@ export default function ContentDetail({ showToast }) {
               </div>
             </div>
 
+            {/* Linked Script/Brief badge */}
+            {linkedSB && (
+              <div className="mb-4 flex items-center gap-2 px-4 py-2.5 bg-blue-50/80 border border-blue-200 rounded-lg">
+                <FileText size={15} className="text-blue-600 shrink-0" />
+                <span className="text-xs text-blue-700 font-medium">
+                  {linkedSB.brief_type === 'script' ? 'Script' : 'Brief'} collegato:
+                </span>
+                <span className="text-sm text-blue-900 font-semibold truncate">{linkedSB.title}</span>
+              </div>
+            )}
+
             {/* Script */}
             <div className="mb-6">
               <div className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">Script / Brief</div>
@@ -234,41 +280,82 @@ export default function ContentDetail({ showToast }) {
               </div>
             )}
 
-            {/* File */}
+            {/* File & Upload Zone */}
             <div className="mb-6">
-              <div className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">File allegato</div>
-              {item.file_name ? (
-                <div className="flex items-center gap-3">
-                  <span className="text-sm text-stone-700">{item.file_name}</span>
-                  <button
-                    onClick={async () => {
-                      try {
-                        const url = await api.downloadFile(item.id)
-                        const a = document.createElement('a')
-                        a.href = url
-                        a.download = item.file_name || 'download'
-                        a.click()
-                        URL.revokeObjectURL(url)
-                      } catch { showToast('Download fallito', 'error') }
-                    }}
-                    className="flex items-center gap-1 text-sm text-accent hover:underline"
-                  >
-                    <Download size={14} /> Scarica
-                  </button>
+              {item.file_name && (
+                <div className="mb-4">
+                  <div className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">File allegato</div>
+                  <div className="flex items-center gap-3 bg-stone-50 rounded-lg px-4 py-3">
+                    <div className="w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <Upload size={16} className="text-accent" />
+                    </div>
+                    <span className="text-sm text-stone-700 flex-1 truncate">{item.file_name}</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const url = await api.downloadFile(item.id)
+                          const a = document.createElement('a')
+                          a.href = url
+                          a.download = item.file_name || 'download'
+                          a.click()
+                          URL.revokeObjectURL(url)
+                        } catch { showToast('Download fallito', 'error') }
+                      }}
+                      className="flex items-center gap-1 text-sm text-accent hover:underline shrink-0"
+                    >
+                      <Download size={14} /> Scarica
+                    </button>
+                  </div>
                 </div>
-              ) : (
-                <span className="text-sm text-stone-400">Nessun file</span>
               )}
-              {!isMarketing && (
-                <div className="mt-2">
-                  <input type="file" ref={fileInput} onChange={handleUpload} className="hidden" />
-                  <button
-                    onClick={() => fileInput.current.click()}
-                    disabled={uploading}
-                    className="flex items-center gap-2 px-4 py-2 text-sm border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors disabled:opacity-50"
+
+              {showUploadZone && (
+                <div>
+                  <div className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">
+                    {item.file_name ? 'Sostituisci file' : 'Carica il tuo lavoro'}
+                  </div>
+                  <input type="file" ref={dropZoneInput} onChange={handleUpload} className="hidden" />
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={handleDrop}
+                    onClick={() => !uploading && dropZoneInput.current.click()}
+                    className={`
+                      relative cursor-pointer rounded-xl border-2 border-dashed transition-all duration-200
+                      ${dragOver
+                        ? 'border-accent bg-accent/5 scale-[1.01]'
+                        : item.file_name
+                          ? 'border-stone-200 hover:border-stone-300 bg-stone-50/50 hover:bg-stone-50'
+                          : 'border-mercury-300 bg-mercury-50/30 hover:border-accent hover:bg-accent/5'
+                      }
+                      ${!item.file_name ? 'py-12' : 'py-6'}
+                    `}
                   >
-                    <Upload size={15} /> {uploading ? 'Caricamento...' : 'Carica file'}
-                  </button>
+                    <div className="flex flex-col items-center gap-3">
+                      <div className={`
+                        w-12 h-12 rounded-full flex items-center justify-center transition-colors
+                        ${dragOver ? 'bg-accent/20' : !item.file_name ? 'bg-mercury-200/50' : 'bg-stone-200/50'}
+                      `}>
+                        {uploading ? (
+                          <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Upload size={22} className={dragOver ? 'text-accent' : !item.file_name ? 'text-mercury-500' : 'text-stone-400'} />
+                        )}
+                      </div>
+                      {uploading ? (
+                        <div className="text-sm font-medium text-accent">Caricamento in corso...</div>
+                      ) : (
+                        <>
+                          <div className={`text-sm font-medium ${!item.file_name ? 'text-stone-700' : 'text-stone-500'}`}>
+                            {dragOver ? 'Rilascia per caricare' : 'Trascina qui il file oppure clicca per selezionarlo'}
+                          </div>
+                          <div className="text-xs text-stone-400">
+                            Video, immagini, file di progetto (max 50 MB)
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

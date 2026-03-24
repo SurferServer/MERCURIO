@@ -7,7 +7,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..database import get_db
-from ..models import Content, Activity, StatusEnum, BrandEnum, ContentTypeEnum, ChannelEnum, SourceEnum, AssigneeEnum
+from ..models import Content, Activity, ScriptBrief, StatusEnum, BrandEnum, ContentTypeEnum, ChannelEnum, SourceEnum, AssigneeEnum
 from ..schemas import ContentCreate, ContentUpdate, ContentResponse, StatsResponse, BrandSummary, ActivityResponse
 from ..auth import get_current_user, require_admin, require_editor, require_any, CurrentUser
 
@@ -242,11 +242,19 @@ def create_content(
         script=data.script,
         notes=data.notes,
         deadline=data.deadline,
+        script_brief_id=data.script_brief_id,
         status=StatusEnum.IN_LAVORAZIONE if data.assigned_to else StatusEnum.DA_ASSEGNARE,
     )
     db.add(content)
     db.commit()
     db.refresh(content)
+
+    # Mark script/brief as used
+    if data.script_brief_id:
+        sb = db.query(ScriptBrief).filter(ScriptBrief.id == data.script_brief_id).first()
+        if sb:
+            sb.is_used = True
+            db.commit()
 
     activity = Activity(content_id=content.id, action=f"Creato da {user.name}")
     db.add(activity)
