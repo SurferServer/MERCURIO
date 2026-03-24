@@ -19,13 +19,13 @@ export function UserProvider({ children }) {
   const isAdmin = user?.role === 'admin'
   const isMarketing = user?.role === 'marketing'
 
-  const login = useCallback(async (id) => {
+  const login = useCallback(async (id, password) => {
     setLoginError(null)
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: id }),
+        body: JSON.stringify({ user_id: id, password }),
       })
       if (!res.ok) {
         const err = await res.json().catch(() => ({ detail: 'Errore di rete' }))

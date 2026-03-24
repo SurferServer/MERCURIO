@@ -4,10 +4,16 @@ Authentication & authorization module for MERCURIO.
 Uses JWT tokens issued at login. Each request must include
 Authorization: Bearer <token> header. The token encodes
 user_id and role, validated server-side on every request.
+
+Passwords are read from environment variables:
+  MERCURIO_PASS_FULVIO, MERCURIO_PASS_FEDERICO,
+  MERCURIO_PASS_MARZIA, MERCURIO_PASS_MARKETING
 """
 
 import os
 import secrets
+import hashlib
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -15,6 +21,8 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 import jwt
+
+logger = logging.getLogger(__name__)
 
 # ── Secret key ────────────────────────────────────────────
 # In production, always set MERCURIO_JWT_SECRET as env variable.
@@ -33,6 +41,29 @@ USERS = {
     "marzia":    {"name": "Marzia",    "role": "collaborator"},
     "marketing": {"name": "Marketing", "role": "marketing"},
 }
+
+# ── Password management ──────────────────────────────────
+# Passwords are read from env vars: MERCURIO_PASS_{USER_ID_UPPER}
+# In production these MUST be set. In dev, if missing, login is blocked.
+
+def _get_user_password(user_id: str) -> Optional[str]:
+    """Get the expected password for a user from environment."""
+    env_key = f"MERCURIO_PASS_{user_id.upper()}"
+    return os.getenv(env_key)
+
+
+def verify_password(user_id: str, password: str) -> bool:
+    """
+    Verify a password for a given user.
+    Uses timing-safe comparison to prevent timing attacks.
+    """
+    expected = _get_user_password(user_id)
+    if not expected:
+        logger.warning(f"No password configured for user '{user_id}' (missing env var MERCURIO_PASS_{user_id.upper()})")
+        return False
+    # Timing-safe comparison
+    return secrets.compare_digest(password, expected)
+
 
 # ── Token helpers ─────────────────────────────────────────
 def create_token(user_id: str) -> str:

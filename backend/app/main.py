@@ -10,7 +10,7 @@ from slowapi.errors import RateLimitExceeded
 
 from .database import engine, Base
 from .routes import contents, files, comments, script_briefs, dev_tasks
-from .auth import create_token, USERS, get_current_user, CurrentUser
+from .auth import create_token, verify_password, USERS, get_current_user, CurrentUser
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -51,15 +51,22 @@ app.add_middleware(
 # ── Auth endpoints ────────────────────────────────────────
 class LoginRequest(BaseModel):
     user_id: str
+    password: str
 
 
 @app.post("/api/auth/login")
 @limiter.limit("5/minute")
 async def login(request: Request, data: LoginRequest):
     if data.user_id not in USERS:
+        # Use same error message to not reveal if user exists
         return JSONResponse(
             status_code=401,
-            content={"detail": "Utente non riconosciuto"},
+            content={"detail": "Credenziali non valide"},
+        )
+    if not verify_password(data.user_id, data.password):
+        return JSONResponse(
+            status_code=401,
+            content={"detail": "Credenziali non valide"},
         )
     token = create_token(data.user_id)
     user = USERS[data.user_id]
