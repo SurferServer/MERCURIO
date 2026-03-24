@@ -56,8 +56,22 @@ def _get_drive_service():
     refresh_token = os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN", "")
 
     if not all([client_id, client_secret, refresh_token, ROOT_FOLDER_ID]):
-        logger.warning("Google Drive not configured (missing OAuth2 env vars)")
+        logger.warning(
+            f"Google Drive not configured — "
+            f"client_id={'YES' if client_id else 'MISSING'}, "
+            f"client_secret={'YES' if client_secret else 'MISSING'}, "
+            f"refresh_token={'YES' if refresh_token else 'MISSING'}, "
+            f"folder_id={'YES' if ROOT_FOLDER_ID else 'MISSING'}"
+        )
         return None
+
+    # Log partial values for debugging (safe — only first/last chars)
+    logger.info(
+        f"OAuth2 init: client_id={client_id[:8]}...{client_id[-8:]} "
+        f"(len={len(client_id)}), "
+        f"secret_len={len(client_secret)}, "
+        f"refresh_len={len(refresh_token)}"
+    )
 
     try:
         from google.oauth2.credentials import Credentials
