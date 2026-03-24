@@ -64,7 +64,7 @@ def list_contents(
     if user.is_marketing:
         q = q.filter(Content.status.in_([StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO]))
     elif archived:
-        q = q.filter(Content.status == StatusEnum.ARCHIVIATO)
+        q = q.filter(Content.status.in_([StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO]))
     else:
         q = q.filter(Content.status != StatusEnum.ARCHIVIATO)
 
