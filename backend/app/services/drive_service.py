@@ -39,7 +39,7 @@ CHANNEL_LABELS = {
     "adv": "ADV",
 }
 
-ROOT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+ROOT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
 
 # Lazy-loaded Drive service
 _drive_service = None
@@ -51,40 +51,14 @@ def _get_drive_service():
     if _drive_service is not None:
         return _drive_service
 
-    client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
-    client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
-    refresh_token = os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN", "")
+    # Strip whitespace/newlines — Render env vars can have trailing \n
+    client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+    client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+    refresh_token = os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN", "").strip()
 
     if not all([client_id, client_secret, refresh_token, ROOT_FOLDER_ID]):
-        logger.warning(
-            f"Google Drive not configured — "
-            f"client_id={'YES' if client_id else 'MISSING'}, "
-            f"client_secret={'YES' if client_secret else 'MISSING'}, "
-            f"refresh_token={'YES' if refresh_token else 'MISSING'}, "
-            f"folder_id={'YES' if ROOT_FOLDER_ID else 'MISSING'}"
-        )
+        logger.warning("Google Drive not configured (missing OAuth2 env vars)")
         return None
-
-    # Debug: log values and test token refresh manually
-    logger.error(
-        f"OAuth2 DEBUG: client_id={client_id[:12]}...{client_id[-20:]} "
-        f"(len={len(client_id)}), "
-        f"secret={client_secret[:8]}... (len={len(client_secret)}), "
-        f"refresh_len={len(refresh_token)}"
-    )
-
-    # Test manual token refresh to get detailed error
-    try:
-        import requests as _req
-        test_resp = _req.post("https://oauth2.googleapis.com/token", data={
-            "grant_type": "refresh_token",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "refresh_token": refresh_token,
-        })
-        logger.error(f"OAuth2 manual refresh test: status={test_resp.status_code}, body={test_resp.text[:500]}")
-    except Exception as te:
-        logger.error(f"OAuth2 manual refresh test failed: {te}")
 
     try:
         from google.oauth2.credentials import Credentials
@@ -99,7 +73,7 @@ def _get_drive_service():
             scopes=["https://www.googleapis.com/auth/drive"],
         )
         _drive_service = build("drive", "v3", credentials=creds)
-        logger.error("Google Drive service initialized with OAuth2 OK")
+        logger.info("Google Drive service initialized with OAuth2")
         return _drive_service
     except Exception as e:
         logger.error(f"Failed to initialize Google Drive: {e}")
