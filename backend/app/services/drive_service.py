@@ -109,14 +109,25 @@ def upload_to_drive(
     try:
         from googleapiclient.http import MediaFileUpload
 
+        # Verify file exists locally
+        if not os.path.exists(file_path):
+            logger.error(f"Drive upload: local file not found: {file_path}")
+            return None
+
+        file_size = os.path.getsize(file_path)
+        logger.info(f"Drive upload starting: {file_name} ({file_size} bytes) → {brand}/{content_type}/{channel}")
+
         brand_label = BRAND_LABELS.get(brand, brand)
         type_label = TYPE_LABELS.get(content_type, content_type)
         channel_label = CHANNEL_LABELS.get(channel, channel)
 
         # Navigate/create folder structure
         brand_folder = _find_or_create_folder(service, brand_label, ROOT_FOLDER_ID)
+        logger.info(f"  Brand folder: {brand_label} → {brand_folder}")
         type_folder = _find_or_create_folder(service, type_label, brand_folder)
+        logger.info(f"  Type folder: {type_label} → {type_folder}")
         channel_folder = _find_or_create_folder(service, channel_label, type_folder)
+        logger.info(f"  Channel folder: {channel_label} → {channel_folder}")
 
         # Upload file
         file_metadata = {
@@ -124,6 +135,7 @@ def upload_to_drive(
             "parents": [channel_folder],
         }
         media = MediaFileUpload(file_path, resumable=True)
+        logger.info(f"  Uploading file to Drive folder {channel_folder}...")
         uploaded = service.files().create(
             body=file_metadata,
             media_body=media,
@@ -131,9 +143,9 @@ def upload_to_drive(
         ).execute()
 
         link = uploaded.get("webViewLink", "")
-        logger.info(f"Uploaded to Drive: {file_name} → {link}")
+        logger.info(f"Drive upload OK: {file_name} → {link} (id={uploaded.get('id', '?')})")
         return link
 
     except Exception as e:
-        logger.error(f"Drive upload failed for {file_name}: {e}")
+        logger.error(f"Drive upload failed for {file_name}: {e}", exc_info=True)
         return None

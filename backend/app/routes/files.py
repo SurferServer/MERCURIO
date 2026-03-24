@@ -1,5 +1,6 @@
 import os
 import re
+import logging
 import shutil
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
@@ -8,9 +9,11 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Content
-from ..auth import get_current_user, require_editor, CurrentUser
+from ..auth import get_current_user, require_editor, require_admin, CurrentUser
 from ..services.thumbnail_service import generate_thumbnail
 from ..services.drive_service import upload_to_drive
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -120,6 +123,7 @@ async def upload_file(
     # Upload to Google Drive (async-safe, non-blocking on failure)
     drive_link = None
     try:
+        logger.info(f"Attempting Drive upload for content {content_id}: {original_name}")
         drive_link = upload_to_drive(
             file_path=file_path,
             file_name=original_name,
@@ -129,9 +133,11 @@ async def upload_file(
         )
         if drive_link:
             content.drive_link = drive_link
+            logger.info(f"Drive upload OK for content {content_id}: {drive_link}")
+        else:
+            logger.warning(f"Drive upload returned None for content {content_id} (not configured?)")
     except Exception as e:
-        import logging
-        logging.getLogger(__name__).error(f"Drive upload error (non-fatal): {e}")
+        logger.error(f"Drive upload error (non-fatal) for content {content_id}: {e}", exc_info=True)
 
     db.commit()
     db.refresh(content)
@@ -196,3 +202,90 @@ def get_thumbnail(
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=86400"},
     )
+
+
+# ── Drive sync (retroactive upload) ─────────────────────
+@router.post("/{content_id}/sync-drive")
+def sync_to_drive(
+    content_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_admin),
+):
+    """Upload an existing local file to Google Drive (admin only)."""
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Contenuto non trovato")
+
+    if not content.file_path or not os.path.exists(content.file_path):
+        raise HTTPException(status_code=404, detail="Nessun file locale trovato per questo contenuto")
+
+    if content.drive_link:
+        return {"message": "Già sincronizzato", "drive_link": content.drive_link}
+
+    try:
+        logger.info(f"Drive sync requested for content {content_id}: {content.file_name}")
+        drive_link = upload_to_drive(
+            file_path=content.file_path,
+            file_name=content.file_name or f"content_{content_id}",
+            brand=content.brand.value if content.brand else "other",
+            content_type=content.content_type.value if content.content_type else "other",
+            channel=content.channel.value if content.channel else "other",
+        )
+        if drive_link:
+            content.drive_link = drive_link
+            content.updated_at = datetime.now(timezone.utc)
+            db.commit()
+            logger.info(f"Drive sync OK for content {content_id}: {drive_link}")
+            return {"message": "Sincronizzato su Drive", "drive_link": drive_link}
+        else:
+            raise HTTPException(status_code=502, detail="Drive non configurato o upload fallito")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Drive sync failed for content {content_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Errore sincronizzazione Drive: {str(e)}")
+
+
+@router.post("/sync-drive-all")
+def sync_all_to_drive(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_admin),
+):
+    """Bulk-sync all local files missing a Drive link (admin only)."""
+    contents = (
+        db.query(Content)
+        .filter(Content.file_path.isnot(None), Content.drive_link.is_(None))
+        .all()
+    )
+
+    results = {"synced": 0, "failed": 0, "skipped": 0, "details": []}
+
+    for content in contents:
+        if not content.file_path or not os.path.exists(content.file_path):
+            results["skipped"] += 1
+            results["details"].append({"id": content.id, "status": "skipped", "reason": "file non trovato sul disco"})
+            continue
+
+        try:
+            drive_link = upload_to_drive(
+                file_path=content.file_path,
+                file_name=content.file_name or f"content_{content.id}",
+                brand=content.brand.value if content.brand else "other",
+                content_type=content.content_type.value if content.content_type else "other",
+                channel=content.channel.value if content.channel else "other",
+            )
+            if drive_link:
+                content.drive_link = drive_link
+                content.updated_at = datetime.now(timezone.utc)
+                results["synced"] += 1
+                results["details"].append({"id": content.id, "status": "ok", "drive_link": drive_link})
+            else:
+                results["failed"] += 1
+                results["details"].append({"id": content.id, "status": "failed", "reason": "Drive non configurato"})
+        except Exception as e:
+            results["failed"] += 1
+            results["details"].append({"id": content.id, "status": "failed", "reason": str(e)})
+            logger.error(f"Bulk sync failed for content {content.id}: {e}")
+
+    db.commit()
+    return results

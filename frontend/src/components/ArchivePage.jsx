@@ -1,14 +1,15 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Grid3X3, List, ExternalLink, Code2, Clock } from 'lucide-react'
+import { Download, Grid3X3, List, ExternalLink, Code2, Clock, RefreshCw } from 'lucide-react'
 import { api } from '../api/client'
 import { useUser } from '../context/UserContext'
 import { BRANDS, TYPES, CHANNELS, SOURCES } from '../api/constants'
 import Tag from './Tag'
 import SmartThumb from './SmartThumb'
 
-export default function ArchivePage() {
+export default function ArchivePage({ showToast }) {
   const { userId, isAdmin } = useUser()
+  const [syncing, setSyncing] = useState(false)
   const showDevTasks = userId === 'federico' || isAdmin
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
@@ -67,6 +68,24 @@ export default function ArchivePage() {
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setViewMode('table')} className={`p-1.5 rounded ${viewMode === 'table' ? 'bg-stone-200' : 'hover:bg-stone-100'}`}><List size={18} /></button>
           <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-stone-200' : 'hover:bg-stone-100'}`}><Grid3X3 size={18} /></button>
+          {isAdmin && (
+            <button
+              onClick={async () => {
+                setSyncing(true)
+                try {
+                  const res = await api.syncDriveAll()
+                  const msg = `Drive: ${res.synced} sincronizzati, ${res.failed} falliti, ${res.skipped} saltati`
+                  showToast?.(msg, res.failed > 0 ? 'error' : 'success')
+                  load()
+                } catch (err) { showToast?.(err.message, 'error') }
+                finally { setSyncing(false) }
+              }}
+              disabled={syncing}
+              className="flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={15} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Sync...' : 'Sync Drive'}
+            </button>
+          )}
           <button onClick={() => api.downloadExport(filters)} className="flex items-center gap-2 px-4 py-1.5 bg-accent text-white rounded-lg text-sm font-medium hover:bg-mercury-800 transition-colors">
             <Download size={15} /> Excel
           </button>
