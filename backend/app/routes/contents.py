@@ -8,6 +8,7 @@ from slowapi.util import get_remote_address
 
 from ..database import get_db
 from ..models import Content, Activity, ScriptBrief, StatusEnum, BrandEnum, ContentTypeEnum, ChannelEnum, SourceEnum, AssigneeEnum
+from ..services.drive_service import upload_script_text_to_drive
 from ..schemas import ContentCreate, ContentUpdate, ContentResponse, StatsResponse, BrandSummary, ActivityResponse
 from ..auth import get_current_user, require_admin, require_editor, require_any, CurrentUser
 
@@ -46,6 +47,7 @@ def list_contents(
     channel: Optional[str] = None,
     source: Optional[str] = None,
     assigned_to: Optional[str] = None,
+    search: Optional[str] = None,
     archived: bool = False,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
@@ -80,6 +82,11 @@ def list_contents(
         q = q.filter(Content.source == source)
     if assigned_to:
         q = q.filter(Content.assigned_to == assigned_to)
+    if search:
+        term = f"%{search.strip()}%"
+        q = q.filter(
+            (Content.title.ilike(term)) | (Content.notes.ilike(term))
+        )
     return q.order_by(Content.created_at.desc()).all()
 
 
@@ -135,6 +142,7 @@ def get_archive_summary(
             totale=len(brand_items),
             video=sum(1 for c in brand_items if c.content_type and c.content_type.value == "video"),
             grafica=sum(1 for c in brand_items if c.content_type and c.content_type.value == "grafica"),
+            sviluppo=sum(1 for c in brand_items if c.content_type and c.content_type.value == "sviluppo"),
             organico=sum(1 for c in brand_items if c.channel and c.channel.value == "organico"),
             adv=sum(1 for c in brand_items if c.channel and c.channel.value == "adv"),
         ))
@@ -185,7 +193,7 @@ def export_excel(
             item.id,
             item.title,
             BRAND_LABELS.get(item.brand.value if item.brand else "", ""),
-            "Video" if item.content_type and item.content_type.value == "video" else "Grafica",
+            {"video": "Video", "grafica": "Grafica", "sviluppo": "Sviluppo"}.get(item.content_type.value if item.content_type else "", ""),
             "Organico" if item.channel and item.channel.value == "organico" else "ADV",
             "Marketing" if item.source and item.source.value == "marketing" else "Interno",
             (item.assigned_to.value.capitalize() if item.assigned_to else ""),
@@ -333,6 +341,23 @@ def update_content(
         content.status = StatusEnum.IN_LAVORAZIONE
 
     content.updated_at = datetime.now(timezone.utc)
+
+    # Archive script text to Drive when content is archived
+    if data.status == "archiviato" and content.script:
+        try:
+            brand_val = content.brand.value if content.brand else "interno"
+            type_val = content.content_type.value if content.content_type else "video"
+            channel_val = content.channel.value if content.channel else "organico"
+            upload_script_text_to_drive(
+                script_text=content.script,
+                title=content.title,
+                brand=brand_val,
+                content_type=type_val,
+                channel=channel_val,
+            )
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f"Script text archive failed: {e}")
 
     if data.status and data.status != old_status:
         status_labels = {

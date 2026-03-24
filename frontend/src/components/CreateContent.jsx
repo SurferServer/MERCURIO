@@ -107,6 +107,7 @@ export default function CreateContent({ showToast }) {
             <select value={form.content_type} onChange={set('content_type')} className={inputCls}>
               <option value="video">Video</option>
               <option value="grafica">Grafica Statica</option>
+              <option value="sviluppo">Sviluppo</option>
             </select>
           </div>
           <div>

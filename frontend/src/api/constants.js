@@ -7,6 +7,7 @@ export const BRANDS = {
 export const TYPES = {
   video: { label: 'Video', bg: 'bg-blue-100', text: 'text-blue-800', icon: '▶', gradient: 'from-amber-400 to-red-400' },
   grafica: { label: 'Grafica', bg: 'bg-pink-100', text: 'text-pink-800', icon: '◆', gradient: 'from-pink-400 to-amber-400' },
+  sviluppo: { label: 'Sviluppo', bg: 'bg-violet-100', text: 'text-violet-800', icon: '⚙', gradient: 'from-violet-400 to-indigo-400' },
 }
 
 export const CHANNELS = {

@@ -131,6 +131,7 @@ class BrandSummary(BaseModel):
     totale: int
     video: int
     grafica: int
+    sviluppo: int = 0
     organico: int
     adv: int
 

@@ -132,19 +132,26 @@ async def upload_file(
 
     # Upload to Google Drive (PRIMARY storage)
     logger.info(f"Uploading to Drive for content {content_id}: {original_name} ({len(file_data)} bytes)")
-    result = upload_to_drive(
-        file_data=file_data,
-        file_name=drive_name,
-        mime_type=mime_type,
-        brand=content.brand.value if content.brand else "other",
-        content_type=content.content_type.value if content.content_type else "other",
-        channel=content.channel.value if content.channel else "other",
-    )
+    try:
+        result = upload_to_drive(
+            file_data=file_data,
+            file_name=drive_name,
+            mime_type=mime_type,
+            brand=content.brand.value if content.brand else "other",
+            content_type=content.content_type.value if content.content_type else "other",
+            channel=content.channel.value if content.channel else "other",
+        )
+    except Exception as e:
+        logger.error(f"Drive upload exception for content {content_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Errore Google Drive: {str(e)}"
+        )
 
     if not result:
         raise HTTPException(
             status_code=502,
-            detail="Impossibile caricare il file su Google Drive. Verifica la configurazione."
+            detail="Google Drive non configurato. Verifica GOOGLE_SERVICE_ACCOUNT_JSON e GOOGLE_DRIVE_FOLDER_ID."
         )
 
     drive_file_id, drive_link = result

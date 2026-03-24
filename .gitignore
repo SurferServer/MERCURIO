@@ -20,6 +20,7 @@ uploads/
 
 # Google credentials
 credentials/
+get_refresh_token.py
 
 # IDE
 .vscode/

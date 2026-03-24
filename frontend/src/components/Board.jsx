@@ -94,8 +94,19 @@ export default function Board({ showToast }) {
                 const source = SOURCES[item.source] || {}
                 const overdue = isOverdue(item)
 
+                const assigneeBg = item.assigned_to === 'federico'
+                  ? 'bg-orange-50/80'
+                  : item.assigned_to === 'marzia'
+                    ? 'bg-rose-50/80'
+                    : 'bg-white/90'
+                const assigneeBorder = item.assigned_to === 'federico'
+                  ? 'border-l-[3px] border-l-orange-400'
+                  : item.assigned_to === 'marzia'
+                    ? 'border-l-[3px] border-l-rose-400'
+                    : ''
+
                 return (
-                  <div key={item.id} className={`bg-white/90 backdrop-blur rounded-lg mb-2.5 border transition-shadow hover:shadow-md overflow-hidden flex ${overdue ? 'border-red-300' : 'border-stone-200'}`}>
+                  <div key={item.id} className={`${assigneeBg} backdrop-blur rounded-lg mb-2.5 border transition-shadow hover:shadow-md overflow-hidden flex ${assigneeBorder} ${overdue ? 'border-red-300' : 'border-stone-200'}`}>
                     <SmartThumb item={item} size="md" />
                     <div className="p-3 flex-1 min-w-0">
                       <div className="flex items-start justify-between mb-1">

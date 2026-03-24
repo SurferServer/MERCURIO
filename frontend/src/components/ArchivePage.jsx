@@ -1,29 +1,25 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Grid3X3, List, ExternalLink, Code2, Clock } from 'lucide-react'
+import { Download, Grid3X3, List, ExternalLink, Search } from 'lucide-react'
 import { api } from '../api/client'
-import { useUser } from '../context/UserContext'
 import { BRANDS, TYPES, CHANNELS, SOURCES } from '../api/constants'
 import Tag from './Tag'
 import SmartThumb from './SmartThumb'
 
 export default function ArchivePage({ showToast }) {
-  const { userId, isAdmin } = useUser()
-  const showDevTasks = userId === 'federico' || isAdmin
   const [items, setItems] = useState([])
   const [summary, setSummary] = useState([])
-  const [completedDevTasks, setCompletedDevTasks] = useState([])
   const [filters, setFilters] = useState({ brand: '', content_type: '', channel: '', source: '' })
+  const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState('table')
   const navigate = useNavigate()
 
   const load = useCallback(() => {
-    api.listContents({ ...filters, archived: true }).then(setItems)
+    const params = { ...filters, archived: true }
+    if (searchQuery.trim()) params.search = searchQuery.trim()
+    api.listContents(params).then(setItems)
     api.getArchiveSummary().then(setSummary)
-    if (showDevTasks) {
-      api.listDevTasks({ status: 'completato' }).then(setCompletedDevTasks).catch(() => {})
-    }
-  }, [filters, showDevTasks])
+  }, [filters, searchQuery])
 
   useEffect(() => { load() }, [load])
 
@@ -41,13 +37,23 @@ export default function ArchivePage({ showToast }) {
             <div key={s.brand} className="bg-white/90 backdrop-blur rounded-xl p-5 border border-stone-200 border-l-4" style={{ borderLeftColor: brand.color }}>
               <div className="text-xs uppercase tracking-wide mb-1 font-bold" style={{ color: brand.color }}>{s.brand_label}</div>
               <div className="text-3xl font-bold text-stone-800 mb-1">{s.totale}</div>
-              <div className="text-xs text-stone-400">{s.video} video · {s.grafica} grafiche · {s.organico} org · {s.adv} adv</div>
+              <div className="text-xs text-stone-400">{s.video} video · {s.grafica} grafiche{s.sviluppo ? ` · ${s.sviluppo} sviluppo` : ''} · {s.organico} org · {s.adv} adv</div>
             </div>
           )
         })}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Cerca per titolo o note..."
+            className="pl-9 pr-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80 w-64 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+          />
+        </div>
         <select value={filters.brand} onChange={setFilter('brand')} className="px-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80">
           <option value="">Tutti i brand</option>
           {Object.entries(BRANDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -153,43 +159,6 @@ export default function ArchivePage({ showToast }) {
         </div>
       )}
 
-      {/* Dev Tasks completati di Federico */}
-      {showDevTasks && completedDevTasks.length > 0 && (
-        <div className="mt-10">
-          <h3 className="text-lg font-bold text-stone-700 flex items-center gap-2 mb-1">
-            <Code2 size={20} className="text-orange-500" />
-            Task di Sviluppo Completati
-          </h3>
-          <p className="text-xs text-stone-400 mb-4">Task di programmazione completati da Federico</p>
-          <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-stone-50">
-                  {['Task', 'Descrizione', 'Tempo stimato', 'Completato'].map(h => (
-                    <th key={h} className="px-4 py-3 text-left text-[11px] uppercase tracking-wide text-stone-500 font-semibold">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {completedDevTasks.map(task => (
-                  <tr key={task.id} className="border-t border-stone-100">
-                    <td className="px-4 py-3 text-sm font-medium text-stone-700">{task.title}</td>
-                    <td className="px-4 py-3 text-sm text-stone-500 max-w-xs truncate">{task.description || '—'}</td>
-                    <td className="px-4 py-3 text-sm text-stone-500">
-                      {task.estimated_hours ? (
-                        <span className="flex items-center gap-1"><Clock size={12} /> {task.estimated_hours}h</span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-stone-500">
-                      {task.completed_at ? new Date(task.completed_at).toLocaleDateString('it-IT') : '—'}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

@@ -33,6 +33,7 @@ BRAND_LABELS = {
 TYPE_LABELS = {
     "video": "Video",
     "grafica": "Grafiche",
+    "sviluppo": "Sviluppo",
 }
 CHANNEL_LABELS = {
     "organico": "Organico",
@@ -172,6 +173,57 @@ def upload_to_drive(
     except Exception as e:
         logger.error(f"Drive upload failed for {file_name}: {e}", exc_info=True)
         raise RuntimeError(f"Drive upload: {e}") from e
+
+
+def upload_script_text_to_drive(
+    script_text: str,
+    title: str,
+    brand: str,
+    content_type: str,
+    channel: str,
+) -> Optional[str]:
+    """
+    Upload the script/brief text as a .txt file alongside the content on Drive.
+    Returns the webViewLink or None.
+    """
+    service = _get_drive_service()
+    if not service or not ROOT_FOLDER_ID or not script_text:
+        return None
+
+    try:
+        from googleapiclient.http import MediaIoBaseUpload
+
+        brand_label = BRAND_LABELS.get(brand, brand)
+        type_label = TYPE_LABELS.get(content_type, content_type)
+        channel_label = CHANNEL_LABELS.get(channel, channel)
+
+        brand_folder = _find_or_create_folder(service, brand_label, ROOT_FOLDER_ID)
+        type_folder = _find_or_create_folder(service, type_label, brand_folder)
+        channel_folder = _find_or_create_folder(service, channel_label, type_folder)
+
+        file_name = f"{title} - Script.txt"
+        file_metadata = {
+            "name": file_name,
+            "parents": [channel_folder],
+        }
+        media = MediaIoBaseUpload(
+            io.BytesIO(script_text.encode("utf-8")),
+            mimetype="text/plain",
+            resumable=False,
+        )
+        uploaded = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields="id, webViewLink",
+        ).execute()
+
+        link = uploaded.get("webViewLink", "")
+        logger.info(f"Script text uploaded to Drive: {file_name} → {link}")
+        return link
+
+    except Exception as e:
+        logger.error(f"Drive script text upload failed: {e}", exc_info=True)
+        return None
 
 
 def download_from_drive(drive_file_id: str) -> Optional[Tuple[bytes, str]]:

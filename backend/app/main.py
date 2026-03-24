@@ -46,6 +46,31 @@ def _run_migrations():
     if migrations:
         logger.info(f"Applied {len(migrations)} migration(s)")
 
+    # Add 'sviluppo' to contenttypeenum if missing (PostgreSQL enum migration)
+    # Must run outside a transaction — ALTER TYPE ... ADD VALUE cannot be in a tx block
+    if "contents" in inspector.get_table_names():
+        try:
+            with engine.connect() as conn:
+                result = conn.execute(text(
+                    "SELECT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'sviluppo' "
+                    "AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'contenttypeenum'))"
+                ))
+                exists = result.scalar()
+            if not exists:
+                # Use raw connection with autocommit for ALTER TYPE
+                raw_conn = engine.raw_connection()
+                try:
+                    raw_conn.set_isolation_level(0)  # AUTOCOMMIT
+                    cursor = raw_conn.cursor()
+                    cursor.execute("ALTER TYPE contenttypeenum ADD VALUE IF NOT EXISTS 'sviluppo'")
+                    cursor.close()
+                    raw_conn.commit()
+                    logger.info("Added 'sviluppo' to contenttypeenum")
+                finally:
+                    raw_conn.close()
+        except Exception as e:
+            logger.info(f"Enum migration skipped (probably SQLite): {e}")
+
 try:
     _run_migrations()
 except Exception as e:

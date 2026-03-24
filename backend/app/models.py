@@ -13,6 +13,7 @@ class BrandEnum(str, enum.Enum):
 class ContentTypeEnum(str, enum.Enum):
     VIDEO = "video"
     GRAFICA = "grafica"
+    SVILUPPO = "sviluppo"
 
 
 class ChannelEnum(str, enum.Enum):

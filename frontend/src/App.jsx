@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, Columns3, Archive, Image, LogOut, FileText, Code2 } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, Columns3, Archive, Image, LogOut, FileText, CalendarDays } from 'lucide-react'
 import { useUser } from './context/UserContext'
 import { setAuthToken } from './api/client'
 import UserPicker from './components/UserPicker'
@@ -12,7 +12,7 @@ import Gallery from './components/Gallery'
 import ArchivePage from './components/ArchivePage'
 import ContentDetail from './components/ContentDetail'
 import ScriptBriefPage from './components/ScriptBriefPage'
-import DevTasksPage from './components/DevTasksPage'
+import CalendarPage from './components/CalendarPage'
 import Toast from './components/Toast'
 
 export default function App() {
@@ -43,6 +43,7 @@ export default function App() {
 
   const navItems = isMarketing
     ? [
+        { to: '/calendario', icon: CalendarDays, label: 'Calendario' },
         { to: '/galleria', icon: Image, label: 'Galleria' },
         { to: '/archivio', icon: Archive, label: 'Archivio' },
       ]
@@ -51,7 +52,7 @@ export default function App() {
         { to: '/script-brief', icon: FileText, label: 'Script / Brief' },
         ...(isAdmin ? [{ to: '/nuovo', icon: PlusCircle, label: 'Crea Contenuto' }] : []),
         { to: '/board', icon: Columns3, label: 'Board Lavori' },
-        ...((userId === 'federico' || isAdmin) ? [{ to: '/sviluppo', icon: Code2, label: 'Sviluppo' }] : []),
+        { to: '/calendario', icon: CalendarDays, label: 'Calendario' },
         { to: '/galleria', icon: Image, label: 'Galleria' },
         { to: '/archivio', icon: Archive, label: 'Archivio' },
       ]
@@ -109,12 +110,12 @@ export default function App() {
         {/* Main */}
         <main className="flex-1 overflow-y-auto p-8" style={{ background: 'rgba(254, 252, 248, 0.55)' }}>
           <Routes>
-            <Route path="/" element={<Navigate to={isMarketing ? '/galleria' : '/dashboard'} replace />} />
+            <Route path="/" element={<Navigate to={isMarketing ? '/calendario' : '/dashboard'} replace />} />
             {!isMarketing && <Route path="/dashboard" element={<Dashboard showToast={showToast} />} />}
             {!isMarketing && <Route path="/script-brief" element={<ScriptBriefPage showToast={showToast} />} />}
             {isAdmin && <Route path="/nuovo" element={<CreateContent showToast={showToast} />} />}
             {!isMarketing && <Route path="/board" element={<Board showToast={showToast} />} />}
-            {(userId === 'federico' || isAdmin) && <Route path="/sviluppo" element={<DevTasksPage showToast={showToast} />} />}
+            <Route path="/calendario" element={<CalendarPage />} />
             <Route path="/galleria" element={<Gallery />} />
             <Route path="/archivio" element={<ArchivePage showToast={showToast} />} />
             <Route path="/contenuto/:id" element={<ContentDetail showToast={showToast} />} />

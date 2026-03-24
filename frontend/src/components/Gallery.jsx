@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS } from '../api/constants'
 import Tag from './Tag'
@@ -9,6 +10,7 @@ export default function Gallery() {
   const [items, setItems] = useState([])
   const [brandFilter, setBrandFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -20,11 +22,15 @@ export default function Gallery() {
     })
   }, [])
 
-  const filtered = items.filter(i => {
-    if (brandFilter && i.brand !== brandFilter) return false
-    if (typeFilter && i.content_type !== typeFilter) return false
-    return true
-  })
+  const filtered = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim()
+    return items.filter(i => {
+      if (brandFilter && i.brand !== brandFilter) return false
+      if (typeFilter && i.content_type !== typeFilter) return false
+      if (q && !i.title?.toLowerCase().includes(q) && !i.notes?.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [items, brandFilter, typeFilter, searchQuery])
 
   const grouped = {}
   filtered.forEach(item => {
@@ -37,7 +43,17 @@ export default function Gallery() {
       <h2 className="text-2xl font-bold mb-1 text-stone-800">Galleria</h2>
       <p className="text-sm text-stone-500 mb-6">Contenuti completati e archiviati</p>
 
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6">
+        <div className="relative">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Cerca per titolo o note..."
+            className="pl-9 pr-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80 w-64 focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
+          />
+        </div>
         <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)} className="px-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80">
           <option value="">Tutti i brand</option>
           {Object.entries(BRANDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
