@@ -88,7 +88,7 @@ def get_stats(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC, matches PostgreSQL DateTime
     active = db.query(Content).filter(Content.status != StatusEnum.ARCHIVIATO).all()
 
     da_assegnare = sum(1 for c in active if c.status == StatusEnum.DA_ASSEGNARE)
