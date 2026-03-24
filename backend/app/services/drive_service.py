@@ -65,13 +65,26 @@ def _get_drive_service():
         )
         return None
 
-    # Log partial values for debugging (safe — only first/last chars)
-    logger.info(
-        f"OAuth2 init: client_id={client_id[:8]}...{client_id[-8:]} "
+    # Debug: log values and test token refresh manually
+    logger.error(
+        f"OAuth2 DEBUG: client_id={client_id[:12]}...{client_id[-20:]} "
         f"(len={len(client_id)}), "
-        f"secret_len={len(client_secret)}, "
+        f"secret={client_secret[:8]}... (len={len(client_secret)}), "
         f"refresh_len={len(refresh_token)}"
     )
+
+    # Test manual token refresh to get detailed error
+    try:
+        import requests as _req
+        test_resp = _req.post("https://oauth2.googleapis.com/token", data={
+            "grant_type": "refresh_token",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "refresh_token": refresh_token,
+        })
+        logger.error(f"OAuth2 manual refresh test: status={test_resp.status_code}, body={test_resp.text[:500]}")
+    except Exception as te:
+        logger.error(f"OAuth2 manual refresh test failed: {te}")
 
     try:
         from google.oauth2.credentials import Credentials
@@ -86,7 +99,7 @@ def _get_drive_service():
             scopes=["https://www.googleapis.com/auth/drive"],
         )
         _drive_service = build("drive", "v3", credentials=creds)
-        logger.info("Google Drive service initialized with OAuth2")
+        logger.error("Google Drive service initialized with OAuth2 OK")
         return _drive_service
     except Exception as e:
         logger.error(f"Failed to initialize Google Drive: {e}")
