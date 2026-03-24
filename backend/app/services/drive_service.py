@@ -7,7 +7,14 @@ as a temporary buffer during upload/thumbnail generation.
 Folder structure on Drive:
   MERCURIO (root) / {brand} / {content_type} / {channel} / filename
 
-Uses a Service Account — credentials from env var GOOGLE_SERVICE_ACCOUNT_JSON.
+Uses OAuth2 credentials (refresh token) — authenticates as the user's
+personal Google account so files count against their Drive quota.
+
+Required env vars:
+  GOOGLE_OAUTH_CLIENT_ID
+  GOOGLE_OAUTH_CLIENT_SECRET
+  GOOGLE_OAUTH_REFRESH_TOKEN
+  GOOGLE_DRIVE_FOLDER_ID
 """
 
 import io
@@ -39,27 +46,33 @@ _drive_service = None
 
 
 def _get_drive_service():
-    """Initialize and cache the Google Drive API service."""
+    """Initialize and cache the Google Drive API service using OAuth2."""
     global _drive_service
     if _drive_service is not None:
         return _drive_service
 
-    creds_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-    if not creds_json or not ROOT_FOLDER_ID:
-        logger.warning("Google Drive not configured (missing env vars)")
+    client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID", "")
+    client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET", "")
+    refresh_token = os.getenv("GOOGLE_OAUTH_REFRESH_TOKEN", "")
+
+    if not all([client_id, client_secret, refresh_token, ROOT_FOLDER_ID]):
+        logger.warning("Google Drive not configured (missing OAuth2 env vars)")
         return None
 
     try:
-        from google.oauth2 import service_account
+        from google.oauth2.credentials import Credentials
         from googleapiclient.discovery import build
 
-        creds_info = json.loads(creds_json)
-        creds = service_account.Credentials.from_service_account_info(
-            creds_info,
+        creds = Credentials(
+            token=None,  # will be refreshed automatically
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
             scopes=["https://www.googleapis.com/auth/drive"],
         )
         _drive_service = build("drive", "v3", credentials=creds)
-        logger.info("Google Drive service initialized successfully")
+        logger.info("Google Drive service initialized with OAuth2")
         return _drive_service
     except Exception as e:
         logger.error(f"Failed to initialize Google Drive: {e}")
@@ -157,7 +170,7 @@ def upload_to_drive(
 
     except Exception as e:
         logger.error(f"Drive upload failed for {file_name}: {e}", exc_info=True)
-        return None
+        raise RuntimeError(f"Drive upload: {e}") from e
 
 
 def download_from_drive(drive_file_id: str) -> Optional[Tuple[bytes, str]]:
