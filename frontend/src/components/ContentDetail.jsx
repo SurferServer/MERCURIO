@@ -97,7 +97,7 @@ export default function ContentDetail({ showToast }) {
         if (url) setThumbUrl(url)
       }
       showToast('File caricato!')
-    } catch (err) { showToast('Upload fallito', 'error') }
+    } catch (err) { showToast(err.message || 'Upload fallito', 'error') }
     finally { setUploading(false) }
   }
 
@@ -132,7 +132,7 @@ export default function ContentDetail({ showToast }) {
         if (url) setThumbUrl(url)
       }
       showToast('File caricato!')
-    } catch (err) { showToast('Upload fallito', 'error') }
+    } catch (err) { showToast(err.message || 'Upload fallito', 'error') }
     finally { setUploading(false) }
   }
 
