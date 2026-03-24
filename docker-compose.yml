@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  backend:
+    build: ./backend
+    # Backend NOT exposed publicly — only reachable via nginx proxy
+    expose:
+      - "8000"
+    environment:
+      - DATABASE_URL=sqlite:///./content_hub.db
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}
+      - UPLOAD_DIR=/app/uploads
+      - MERCURIO_JWT_SECRET=${MERCURIO_JWT_SECRET:?Set MERCURIO_JWT_SECRET in .env}
+      - MERCURIO_JWT_EXPIRE_HOURS=${MERCURIO_JWT_EXPIRE_HOURS:-24}
+      - MERCURIO_MAX_UPLOAD_MB=${MERCURIO_MAX_UPLOAD_MB:-50}
+      - MERCURIO_ENV=${MERCURIO_ENV:-production}
+      # Google Drive (opzionale — decommentare e configurare)
+      # - GOOGLE_DRIVE_CREDENTIALS_PATH=/app/credentials/drive-key.json
+      # - GOOGLE_DRIVE_ROOT_FOLDER_ID=your_folder_id_here
+    volumes:
+      - db_data:/app
+      - uploads:/app/uploads
+      # - ./credentials:/app/credentials:ro
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  uploads:

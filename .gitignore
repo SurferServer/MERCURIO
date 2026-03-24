@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+venv/
+.env
+
+# Node
+node_modules/
+frontend/dist/
+
+# Database
+*.db
+*.sqlite3
+
+# Uploads
+uploads/
+
+# Google credentials
+credentials/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
