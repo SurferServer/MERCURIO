@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -85,19 +85,34 @@ app.include_router(contents.router)
 app.include_router(files.router)
 app.include_router(comments.router)
 
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "app": "MERCURIO"}
+
+
 # Serve frontend build in production
 # Check multiple possible locations (local dev vs Docker container)
+_dist_path = None
 _possible_dist = [
     os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist"),  # local dev
     os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"),        # Render container
     "/app/frontend/dist",                                                      # absolute fallback
 ]
-for _dist_path in _possible_dist:
-    if os.path.exists(_dist_path):
-        app.mount("/", StaticFiles(directory=_dist_path, html=True), name="frontend")
+for _p in _possible_dist:
+    if os.path.exists(_p):
+        _dist_path = os.path.realpath(_p)
         break
 
+if _dist_path:
+    # Serve static assets (JS, CSS, images)
+    _assets_path = os.path.join(_dist_path, "assets")
+    if os.path.exists(_assets_path):
+        app.mount("/assets", StaticFiles(directory=_assets_path), name="assets")
 
-@app.get("/api/health")
-def health_check():
-    return {"status": "ok", "app": "MERCURIO"}
+    # SPA catch-all: any non-API route returns index.html
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        file_path = os.path.join(_dist_path, full_path)
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
+        return FileResponse(os.path.join(_dist_path, "index.html"))
