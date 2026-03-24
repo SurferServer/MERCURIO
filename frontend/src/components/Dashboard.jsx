@@ -14,13 +14,32 @@ export default function Dashboard() {
   const [expandedPanel, setExpandedPanel] = useState(null)
   const navigate = useNavigate()
 
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
   useEffect(() => {
-    api.getStats().then(setStats)
-    api.listContents().then(items => {
-      setAllItems(items)
-      setRecent(items.slice(0, 8))
-    })
+    Promise.all([
+      api.getStats().then(setStats).catch(err => {
+        console.error('Stats fetch failed:', err)
+        setError('Impossibile caricare le statistiche')
+      }),
+      api.listContents().then(items => {
+        setAllItems(items)
+        setRecent(items.slice(0, 8))
+      }).catch(err => {
+        console.error('Contents fetch failed:', err)
+      }),
+    ]).finally(() => setLoading(false))
   }, [])
+
+  if (loading) return <div className="text-mercury-600/50 py-20 text-center">Caricamento...</div>
+
+  if (!stats && error) return (
+    <div className="py-20 text-center">
+      <div className="text-red-500 text-sm font-medium mb-2">{error}</div>
+      <button onClick={() => window.location.reload()} className="text-xs text-accent underline">Riprova</button>
+    </div>
+  )
 
   if (!stats) return <div className="text-mercury-600/50 py-20 text-center">Caricamento...</div>
 

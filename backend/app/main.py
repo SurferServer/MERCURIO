@@ -12,8 +12,40 @@ from .database import engine, Base
 from .routes import contents, files, comments, script_briefs, dev_tasks
 from .auth import create_token, verify_password, USERS, get_current_user, CurrentUser
 
-# Create tables
+import logging
+from sqlalchemy import text, inspect
+
+logger = logging.getLogger(__name__)
+
+# Create tables (new tables only — existing ones are left untouched)
 Base.metadata.create_all(bind=engine)
+
+# ── Lightweight migration: add missing columns to existing tables ──
+def _run_migrations():
+    """Add columns that were introduced after initial deployment."""
+    inspector = inspect(engine)
+    migrations = []
+
+    # script_brief_id on contents table (added with Script/Brief feature)
+    if "contents" in inspector.get_table_names():
+        existing_cols = {c["name"] for c in inspector.get_columns("contents")}
+        if "script_brief_id" not in existing_cols:
+            migrations.append(
+                "ALTER TABLE contents ADD COLUMN script_brief_id INTEGER REFERENCES script_briefs(id)"
+            )
+
+    with engine.begin() as conn:
+        for sql in migrations:
+            logger.info(f"Running migration: {sql}")
+            conn.execute(text(sql))
+
+    if migrations:
+        logger.info(f"Applied {len(migrations)} migration(s)")
+
+try:
+    _run_migrations()
+except Exception as e:
+    logger.error(f"Migration failed (non-fatal): {e}")
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
