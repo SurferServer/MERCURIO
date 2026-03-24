@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react'
+import { setAuthToken } from '../api/client'
 
 const UserContext = createContext(null)
 
@@ -31,6 +32,7 @@ export function UserProvider({ children }) {
         throw new Error(err.detail || `HTTP ${res.status}`)
       }
       const data = await res.json()
+      setAuthToken(data.token)
       setToken(data.token)
       setUserIdState(id)
     } catch (err) {
@@ -40,6 +42,7 @@ export function UserProvider({ children }) {
   }, [])
 
   const logout = useCallback(() => {
+    setAuthToken(null)
     setToken(null)
     setUserIdState(null)
     setLoginError(null)
