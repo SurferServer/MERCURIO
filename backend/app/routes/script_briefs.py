@@ -80,19 +80,19 @@ def create_script_brief(
 
     # Auto-create a Content task linked to this Script/Brief
     # Script → video, Brief → grafica
+    # Always starts as DA_ASSEGNARE — assignment is a separate step from the Board
     content_type = "video" if data.brief_type == "script" else "grafica"
-    has_assignee = bool(data.assigned_to)
     content = Content(
         title=data.title,
         brand=data.brand,
         content_type=content_type,
         channel="organico",
         source="interno",
-        assigned_to=data.assigned_to,
+        assigned_to=None,
         script=data.content,
         notes=data.notes,
         script_brief_id=sb.id,
-        status=StatusEnum.IN_LAVORAZIONE if has_assignee else StatusEnum.DA_ASSEGNARE,
+        status=StatusEnum.DA_ASSEGNARE,
     )
     db.add(content)
     db.commit()
@@ -104,8 +104,6 @@ def create_script_brief(
 
     # Log activity
     db.add(Activity(content_id=content.id, action=f"Creato automaticamente da {data.brief_type} \"{data.title}\" ({user.name})"))
-    if has_assignee:
-        db.add(Activity(content_id=content.id, action=f"Assegnato a {data.assigned_to.capitalize()}"))
     db.commit()
 
     return sb
