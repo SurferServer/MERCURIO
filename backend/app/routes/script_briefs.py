@@ -141,8 +141,13 @@ def delete_script_brief(
     sb = db.query(ScriptBrief).filter(ScriptBrief.id == sb_id).first()
     if not sb:
         raise HTTPException(404, "Script/Brief non trovato")
-    if sb.is_used:
-        raise HTTPException(400, "Non puoi eliminare uno script/brief già assegnato a un contenuto")
+
+    # Delete linked content (and its activities) if any
+    linked_contents = db.query(Content).filter(Content.script_brief_id == sb.id).all()
+    for content in linked_contents:
+        db.query(Activity).filter(Activity.content_id == content.id).delete()
+        db.delete(content)
+
     db.delete(sb)
     db.commit()
     return {"detail": "Eliminato"}

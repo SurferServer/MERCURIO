@@ -107,7 +107,7 @@ export default function App() {
         </nav>
 
         {/* Main */}
-        <main className="flex-1 overflow-y-auto p-8" style={{ background: 'rgba(254, 252, 248, 0.85)' }}>
+        <main className="flex-1 overflow-y-auto p-8" style={{ background: 'rgba(254, 252, 248, 0.55)' }}>
           <Routes>
             <Route path="/" element={<Navigate to={isMarketing ? '/galleria' : '/dashboard'} replace />} />
             {!isMarketing && <Route path="/dashboard" element={<Dashboard showToast={showToast} />} />}

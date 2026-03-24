@@ -201,7 +201,7 @@ export default function ScriptBriefPage({ showToast }) {
                 editingAssign={false}
                 onEditAssign={() => {}}
                 onAssign={() => {}}
-                onDelete={() => {}}
+                onDelete={() => handleDelete(item.id)}
               />
             ))}
           </div>
@@ -250,24 +250,28 @@ function ScriptBriefCard({ item, isAdmin, expanded, onToggle, editingAssign, onE
             )}
           </div>
 
-          {isAdmin && !item.is_used && (
+          {isAdmin && (
             <div className="flex items-center gap-3 pt-3 border-t border-stone-100">
-              {editingAssign ? (
-                <div className="flex items-center gap-2">
-                  <button onClick={() => onAssign('federico')} className="px-3 py-1.5 text-xs bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors font-medium">Federico</button>
-                  <button onClick={() => onAssign('marzia')} className="px-3 py-1.5 text-xs bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium">Marzia</button>
-                  {item.assigned_to && (
-                    <button onClick={() => onAssign(null)} className="px-3 py-1.5 text-xs bg-stone-100 text-stone-600 rounded-lg hover:bg-stone-200 transition-colors">Rimuovi</button>
+              {!item.is_used && (
+                <>
+                  {editingAssign ? (
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => onAssign('federico')} className="px-3 py-1.5 text-xs bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors font-medium">Federico</button>
+                      <button onClick={() => onAssign('marzia')} className="px-3 py-1.5 text-xs bg-red-50 text-red-700 rounded-lg hover:bg-red-100 transition-colors font-medium">Marzia</button>
+                      {item.assigned_to && (
+                        <button onClick={() => onAssign(null)} className="px-3 py-1.5 text-xs bg-stone-100 text-stone-600 rounded-lg hover:bg-stone-200 transition-colors">Rimuovi</button>
+                      )}
+                      <button onClick={onEditAssign} className="text-xs text-stone-400 hover:text-stone-600 ml-1">Annulla</button>
+                    </div>
+                  ) : (
+                    <button onClick={onEditAssign} className="flex items-center gap-1.5 text-xs text-accent hover:text-mercury-800 font-medium">
+                      <UserPlus size={14} /> {item.assigned_to ? 'Riassegna' : 'Assegna'}
+                    </button>
                   )}
-                  <button onClick={onEditAssign} className="text-xs text-stone-400 hover:text-stone-600 ml-1">Annulla</button>
-                </div>
-              ) : (
-                <button onClick={onEditAssign} className="flex items-center gap-1.5 text-xs text-accent hover:text-mercury-800 font-medium">
-                  <UserPlus size={14} /> {item.assigned_to ? 'Riassegna' : 'Assegna'}
-                </button>
+                </>
               )}
               <button onClick={onDelete} className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 ml-auto">
-                <Trash2 size={14} /> Elimina
+                <Trash2 size={14} /> Elimina{item.is_used ? ' (con task collegato)' : ''}
               </button>
             </div>
           )}
