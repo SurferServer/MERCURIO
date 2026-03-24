@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models import Content
 from ..auth import get_current_user, require_editor, CurrentUser
 from ..services.thumbnail_service import generate_thumbnail
+from ..services.drive_service import upload_to_drive
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
@@ -116,13 +117,30 @@ async def upload_file(
     if thumb_path:
         content.thumbnail_path = thumb_path
 
+    # Upload to Google Drive (async-safe, non-blocking on failure)
+    drive_link = None
+    try:
+        drive_link = upload_to_drive(
+            file_path=file_path,
+            file_name=original_name,
+            brand=content.brand.value if content.brand else "other",
+            content_type=content.content_type.value if content.content_type else "other",
+            channel=content.channel.value if content.channel else "other",
+        )
+        if drive_link:
+            content.drive_link = drive_link
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Drive upload error (non-fatal): {e}")
+
     db.commit()
     db.refresh(content)
 
     return {
-        "message": "File caricato",
+        "message": "File caricato" + (" e sincronizzato su Drive" if drive_link else ""),
         "file_name": original_name,
         "has_thumbnail": bool(thumb_path),
+        "drive_link": drive_link,
     }
 
 
