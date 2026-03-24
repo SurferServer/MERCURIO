@@ -98,10 +98,6 @@ export const api = {
     return URL.createObjectURL(blob)
   },
 
-  // Drive sync
-  syncDrive: (contentId) => request(`/files/${contentId}/sync-drive`, { method: 'POST' }),
-  syncDriveAll: () => request('/files/sync-drive-all', { method: 'POST' }),
-
   // Script / Brief
   listScriptBriefs: (params = {}) => {
     const qs = new URLSearchParams(

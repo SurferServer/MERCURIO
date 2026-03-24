@@ -101,6 +101,7 @@ class ContentResponse(BaseModel):
     has_thumbnail: bool = False
     # file_path removed — never expose internal server paths
     drive_link: Optional[str]
+    drive_file_id: Optional[str] = None
     script_brief_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime

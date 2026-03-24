@@ -1,24 +1,43 @@
+"""
+File handling routes — Google Drive is PRIMARY storage.
+
+Upload flow:
+  1. Read file bytes + validate
+  2. Upload to Google Drive → get drive_file_id + webViewLink
+  3. Generate thumbnail from bytes (temp file, then cleanup)
+  4. Save metadata to DB (no local file path stored)
+
+Download flow:
+  1. Read drive_file_id from DB
+  2. Stream file bytes from Drive API
+  3. Return as response
+"""
+
 import os
 import re
 import logging
-import shutil
+import mimetypes
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Content
 from ..auth import get_current_user, require_editor, require_admin, CurrentUser
-from ..services.thumbnail_service import generate_thumbnail
-from ..services.drive_service import upload_to_drive
+from ..services.thumbnail_service import generate_thumbnail_from_bytes, THUMB_DIR
+from ..services.drive_service import (
+    upload_to_drive,
+    download_from_drive,
+    is_configured as drive_is_configured,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/files", tags=["files"])
 
-UPLOAD_DIR = os.getenv("UPLOAD_DIR", "./uploads")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# Thumbnails still stored locally (small JPEGs, regenerable)
+os.makedirs(THUMB_DIR, exist_ok=True)
 
 # ── Security: file validation ────────────────────────────
 MAX_FILE_SIZE_MB = int(os.getenv("MERCURIO_MAX_UPLOAD_MB", "50"))
@@ -37,26 +56,21 @@ ALLOWED_EXTENSIONS = {
     ".zip", ".rar",
 }
 
-# Characters allowed in filenames (alphanumeric, dash, underscore, dot, space)
 SAFE_FILENAME_RE = re.compile(r'[^\w\s\-.]', re.UNICODE)
 
 
 def sanitize_filename(name: str) -> str:
     """Remove dangerous characters from filename."""
-    # Remove path separators and null bytes
     name = name.replace("/", "_").replace("\\", "_").replace("\x00", "")
-    # Remove other unsafe characters
     name = SAFE_FILENAME_RE.sub('_', name)
-    # Collapse multiple underscores
     name = re.sub(r'_+', '_', name).strip('_. ')
     return name or "unnamed"
 
 
 def validate_file(file: UploadFile):
-    """Validate file extension and content-type."""
+    """Validate file extension."""
     if not file.filename:
         raise HTTPException(status_code=400, detail="Nome file mancante")
-
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -65,6 +79,27 @@ def validate_file(file: UploadFile):
         )
 
 
+# ── Helpers ──────────────────────────────────────────────
+def _sanitize_header_value(value: str) -> str:
+    """Remove characters unsafe for HTTP header values."""
+    # Only allow printable ASCII minus quotes and backslash
+    return re.sub(r'[^\w\s\-.()\[\]]', '_', value or "download")
+
+
+def _check_content_access(content: Content, user: "CurrentUser"):
+    """Enforce access rules: marketing only sees completed/archived."""
+    if user.is_marketing and content.status not in ("completato", "archiviato"):
+        raise HTTPException(status_code=403, detail="Non hai i permessi per questo contenuto")
+
+
+# ── Drive status check (static route BEFORE parameterized routes) ──
+@router.get("/drive-status")
+def drive_status(user: "CurrentUser" = Depends(require_admin)):
+    """Check if Google Drive is properly configured."""
+    return {"configured": drive_is_configured()}
+
+
+# ── Upload ───────────────────────────────────────────────
 @router.post("/{content_id}/upload")
 async def upload_file(
     content_id: int,
@@ -72,15 +107,15 @@ async def upload_file(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(require_editor),
 ):
-    """Upload a file. Admin and collaborators only."""
+    """Upload a file to Google Drive. Admin and collaborators only."""
     content = db.query(Content).filter(Content.id == content_id).first()
     if not content:
         raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
-    # Validate file type
+    # Validate
     validate_file(file)
 
-    # Read file with size limit
+    # Read file bytes
     file_data = await file.read()
     if len(file_data) > MAX_FILE_SIZE:
         raise HTTPException(
@@ -88,95 +123,101 @@ async def upload_file(
             detail=f"File troppo grande. Massimo consentito: {MAX_FILE_SIZE_MB}MB"
         )
 
-    # Create organized directory structure
-    brand_dir = content.brand.value if content.brand else "other"
-    type_dir = content.content_type.value if content.content_type else "other"
-    channel_dir = content.channel.value if content.channel else "other"
-    target_dir = os.path.join(UPLOAD_DIR, brand_dir, type_dir, channel_dir)
-    os.makedirs(target_dir, exist_ok=True)
-
-    # Sanitize filename
     original_name = sanitize_filename(file.filename)
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    safe_name = f"{timestamp}_{content_id}_{original_name}"
+    drive_name = f"{timestamp}_{content_id}_{original_name}"
 
-    file_path = os.path.join(target_dir, safe_name)
+    # Detect MIME type
+    mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
 
-    # Verify final path is within UPLOAD_DIR (prevent traversal)
-    real_target = os.path.realpath(file_path)
-    real_upload = os.path.realpath(UPLOAD_DIR)
-    if not real_target.startswith(real_upload):
-        raise HTTPException(status_code=400, detail="Percorso file non valido")
+    # Upload to Google Drive (PRIMARY storage)
+    logger.info(f"Uploading to Drive for content {content_id}: {original_name} ({len(file_data)} bytes)")
+    result = upload_to_drive(
+        file_data=file_data,
+        file_name=drive_name,
+        mime_type=mime_type,
+        brand=content.brand.value if content.brand else "other",
+        content_type=content.content_type.value if content.content_type else "other",
+        channel=content.channel.value if content.channel else "other",
+    )
 
-    with open(file_path, "wb") as buffer:
-        buffer.write(file_data)
+    if not result:
+        raise HTTPException(
+            status_code=502,
+            detail="Impossibile caricare il file su Google Drive. Verifica la configurazione."
+        )
 
+    drive_file_id, drive_link = result
+
+    # Save metadata
     content.file_name = original_name
-    content.file_path = file_path
+    content.file_path = None  # No local storage
+    content.drive_file_id = drive_file_id
+    content.drive_link = drive_link
     content.updated_at = datetime.now(timezone.utc)
 
-    # Generate thumbnail (images: resize, videos: first frame via ffmpeg)
-    thumb_path = generate_thumbnail(file_path, content_id)
+    # Generate thumbnail from bytes (images/videos)
+    thumb_path = generate_thumbnail_from_bytes(file_data, original_name, content_id)
     if thumb_path:
         content.thumbnail_path = thumb_path
-
-    # Upload to Google Drive (async-safe, non-blocking on failure)
-    drive_link = None
-    try:
-        logger.info(f"Attempting Drive upload for content {content_id}: {original_name}")
-        drive_link = upload_to_drive(
-            file_path=file_path,
-            file_name=original_name,
-            brand=content.brand.value if content.brand else "other",
-            content_type=content.content_type.value if content.content_type else "other",
-            channel=content.channel.value if content.channel else "other",
-        )
-        if drive_link:
-            content.drive_link = drive_link
-            logger.info(f"Drive upload OK for content {content_id}: {drive_link}")
-        else:
-            logger.warning(f"Drive upload returned None for content {content_id} (not configured?)")
-    except Exception as e:
-        logger.error(f"Drive upload error (non-fatal) for content {content_id}: {e}", exc_info=True)
 
     db.commit()
     db.refresh(content)
 
+    logger.info(f"Upload complete for content {content_id}: drive_id={drive_file_id}")
+
     return {
-        "message": "File caricato" + (" e sincronizzato su Drive" if drive_link else ""),
+        "message": "File caricato su Drive",
         "file_name": original_name,
         "has_thumbnail": bool(thumb_path),
         "drive_link": drive_link,
+        "drive_file_id": drive_file_id,
     }
 
 
+# ── Download (proxy from Drive) ─────────────────────────
 @router.get("/{content_id}/download")
 def download_file(
     content_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Any authenticated user can download."""
+    """Download file — streams from Google Drive."""
     content = db.query(Content).filter(Content.id == content_id).first()
-    if not content or not content.file_path:
-        raise HTTPException(status_code=404, detail="File non trovato")
+    if not content:
+        raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
-    # Verify path is within upload dir
-    real_path = os.path.realpath(content.file_path)
-    real_upload = os.path.realpath(UPLOAD_DIR)
-    if not real_path.startswith(real_upload):
-        raise HTTPException(status_code=403, detail="Accesso non consentito")
+    # Access control
+    _check_content_access(content, user)
 
-    if not os.path.exists(content.file_path):
-        raise HTTPException(status_code=404, detail="File non trovato sul disco")
+    # Try Drive download first (primary)
+    if content.drive_file_id:
+        result = download_from_drive(content.drive_file_id)
+        if result:
+            file_bytes, mime_type = result
+            safe_name = _sanitize_header_value(content.file_name)
+            return Response(
+                content=file_bytes,
+                media_type=mime_type,
+                headers={
+                    "Content-Disposition": f'attachment; filename="{safe_name}"',
+                },
+            )
+        else:
+            logger.error(f"Drive download failed for content {content_id}, drive_id={content.drive_file_id}")
 
-    return FileResponse(
-        content.file_path,
-        filename=content.file_name or "download",
-        media_type="application/octet-stream",
-    )
+    # Fallback to local file (legacy, pre-Drive content)
+    if content.file_path and os.path.exists(content.file_path):
+        return FileResponse(
+            content.file_path,
+            filename=content.file_name or "download",
+            media_type="application/octet-stream",
+        )
+
+    raise HTTPException(status_code=404, detail="File non trovato")
 
 
+# ── Thumbnail ────────────────────────────────────────────
 @router.get("/{content_id}/thumbnail")
 def get_thumbnail(
     content_id: int,
@@ -188,13 +229,30 @@ def get_thumbnail(
     if not content or not content.thumbnail_path:
         raise HTTPException(status_code=404, detail="Thumbnail non disponibile")
 
-    if not os.path.exists(content.thumbnail_path):
-        raise HTTPException(status_code=404, detail="Thumbnail non trovata sul disco")
+    # Access control
+    _check_content_access(content, user)
 
-    # Verify path safety
-    thumb_dir = os.path.realpath(os.path.join(UPLOAD_DIR, "_thumbnails"))
-    real_path = os.path.realpath(content.thumbnail_path)
-    if not real_path.startswith(thumb_dir):
+    if not os.path.exists(content.thumbnail_path):
+        # Thumbnail lost (redeploy) — try to regenerate from Drive
+        if content.drive_file_id:
+            result = download_from_drive(content.drive_file_id)
+            if result and content.file_name:
+                file_bytes, _ = result
+                thumb_path = generate_thumbnail_from_bytes(file_bytes, content.file_name, content_id)
+                if thumb_path:
+                    content.thumbnail_path = thumb_path
+                    db.commit()
+                else:
+                    raise HTTPException(status_code=404, detail="Impossibile rigenerare thumbnail")
+            else:
+                raise HTTPException(status_code=404, detail="File non disponibile su Drive")
+        else:
+            raise HTTPException(status_code=404, detail="Thumbnail non trovata sul disco")
+
+    # Path traversal protection
+    real_thumb = os.path.realpath(content.thumbnail_path)
+    real_thumb_dir = os.path.realpath(THUMB_DIR)
+    if not real_thumb.startswith(real_thumb_dir):
         raise HTTPException(status_code=403, detail="Accesso non consentito")
 
     return FileResponse(
@@ -202,90 +260,3 @@ def get_thumbnail(
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=86400"},
     )
-
-
-# ── Drive sync (retroactive upload) ─────────────────────
-@router.post("/{content_id}/sync-drive")
-def sync_to_drive(
-    content_id: int,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_admin),
-):
-    """Upload an existing local file to Google Drive (admin only)."""
-    content = db.query(Content).filter(Content.id == content_id).first()
-    if not content:
-        raise HTTPException(status_code=404, detail="Contenuto non trovato")
-
-    if not content.file_path or not os.path.exists(content.file_path):
-        raise HTTPException(status_code=404, detail="Nessun file locale trovato per questo contenuto")
-
-    if content.drive_link:
-        return {"message": "Già sincronizzato", "drive_link": content.drive_link}
-
-    try:
-        logger.info(f"Drive sync requested for content {content_id}: {content.file_name}")
-        drive_link = upload_to_drive(
-            file_path=content.file_path,
-            file_name=content.file_name or f"content_{content_id}",
-            brand=content.brand.value if content.brand else "other",
-            content_type=content.content_type.value if content.content_type else "other",
-            channel=content.channel.value if content.channel else "other",
-        )
-        if drive_link:
-            content.drive_link = drive_link
-            content.updated_at = datetime.now(timezone.utc)
-            db.commit()
-            logger.info(f"Drive sync OK for content {content_id}: {drive_link}")
-            return {"message": "Sincronizzato su Drive", "drive_link": drive_link}
-        else:
-            raise HTTPException(status_code=502, detail="Drive non configurato o upload fallito")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Drive sync failed for content {content_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Errore sincronizzazione Drive: {str(e)}")
-
-
-@router.post("/sync-drive-all")
-def sync_all_to_drive(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_admin),
-):
-    """Bulk-sync all local files missing a Drive link (admin only)."""
-    contents = (
-        db.query(Content)
-        .filter(Content.file_path.isnot(None), Content.drive_link.is_(None))
-        .all()
-    )
-
-    results = {"synced": 0, "failed": 0, "skipped": 0, "details": []}
-
-    for content in contents:
-        if not content.file_path or not os.path.exists(content.file_path):
-            results["skipped"] += 1
-            results["details"].append({"id": content.id, "status": "skipped", "reason": "file non trovato sul disco"})
-            continue
-
-        try:
-            drive_link = upload_to_drive(
-                file_path=content.file_path,
-                file_name=content.file_name or f"content_{content.id}",
-                brand=content.brand.value if content.brand else "other",
-                content_type=content.content_type.value if content.content_type else "other",
-                channel=content.channel.value if content.channel else "other",
-            )
-            if drive_link:
-                content.drive_link = drive_link
-                content.updated_at = datetime.now(timezone.utc)
-                results["synced"] += 1
-                results["details"].append({"id": content.id, "status": "ok", "drive_link": drive_link})
-            else:
-                results["failed"] += 1
-                results["details"].append({"id": content.id, "status": "failed", "reason": "Drive non configurato"})
-        except Exception as e:
-            results["failed"] += 1
-            results["details"].append({"id": content.id, "status": "failed", "reason": str(e)})
-            logger.error(f"Bulk sync failed for content {content.id}: {e}")
-
-    db.commit()
-    return results

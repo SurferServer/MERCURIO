@@ -33,6 +33,10 @@ def _run_migrations():
             migrations.append(
                 "ALTER TABLE contents ADD COLUMN script_brief_id INTEGER REFERENCES script_briefs(id)"
             )
+        if "drive_file_id" not in existing_cols:
+            migrations.append(
+                "ALTER TABLE contents ADD COLUMN drive_file_id VARCHAR(200)"
+            )
 
     with engine.begin() as conn:
         for sql in migrations:

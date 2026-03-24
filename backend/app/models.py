@@ -81,11 +81,12 @@ class Content(Base):
     file_path = Column(String(500), nullable=True)
     thumbnail_path = Column(String(500), nullable=True)
     drive_link = Column(String(500), nullable=True)
+    drive_file_id = Column(String(200), nullable=True)
     script_brief_id = Column(Integer, ForeignKey("script_briefs.id"), nullable=True)
 
     @property
     def has_thumbnail(self) -> bool:
-        return bool(self.thumbnail_path)
+        return bool(self.thumbnail_path) or bool(self.drive_file_id and self.file_name)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

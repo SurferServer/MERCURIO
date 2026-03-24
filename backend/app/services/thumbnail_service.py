@@ -129,3 +129,41 @@ def generate_thumbnail(file_path: str, content_id: int) -> str | None:
         logger.info(f"Thumbnail not supported for extension: {ext}")
 
     return None
+
+
+def generate_thumbnail_from_bytes(
+    file_data: bytes, file_name: str, content_id: int
+) -> str | None:
+    """
+    Generate thumbnail from in-memory file data.
+    Writes a temp file, generates thumb, cleans up.
+    Returns thumb path or None.
+    """
+    import tempfile
+
+    ext = Path(file_name).suffix.lower()
+    if ext not in IMAGE_EXTENSIONS and ext not in VIDEO_EXTENSIONS:
+        return None
+
+    thumb_name = f"thumb_{content_id}.jpg"
+    thumb_path = os.path.join(THUMB_DIR, thumb_name)
+
+    try:
+        with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+            tmp.write(file_data)
+            tmp_path = tmp.name
+
+        if ext in IMAGE_EXTENSIONS:
+            ok = _resize_image(tmp_path, thumb_path)
+        else:
+            ok = _extract_video_frame(tmp_path, thumb_path)
+
+        return thumb_path if ok else None
+    except Exception as e:
+        logger.error(f"Thumbnail from bytes failed: {e}")
+        return None
+    finally:
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass

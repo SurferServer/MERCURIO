@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS, SOURCES, STATUSES } from '../api/constants'
 import { useUser } from '../context/UserContext'
@@ -23,7 +23,6 @@ export default function ContentDetail({ showToast }) {
   const [newComment, setNewComment] = useState('')
   const [thumbUrl, setThumbUrl] = useState(null)
   const [linkedSB, setLinkedSB] = useState(null)
-  const [syncingDrive, setSyncingDrive] = useState(false)
 
   const loadAll = () => {
     api.getContent(id).then(data => {
@@ -306,24 +305,6 @@ export default function ContentDetail({ showToast }) {
                     >
                       <Download size={14} /> Scarica
                     </button>
-                    {isAdmin && !item.drive_link && (
-                      <button
-                        onClick={async (e) => {
-                          e.stopPropagation()
-                          setSyncingDrive(true)
-                          try {
-                            const res = await api.syncDrive(item.id)
-                            showToast(res.message)
-                            loadAll()
-                          } catch (err) { showToast(err.message, 'error') }
-                          finally { setSyncingDrive(false) }
-                        }}
-                        disabled={syncingDrive}
-                        className="flex items-center gap-1 text-sm text-blue-600 hover:underline shrink-0 disabled:opacity-50"
-                      >
-                        <RefreshCw size={14} className={syncingDrive ? 'animate-spin' : ''} /> {syncingDrive ? 'Sync...' : 'Sync Drive'}
-                      </button>
-                    )}
                   </div>
                 </div>
               )}

@@ -1,18 +1,20 @@
 """
-Google Drive integration service.
+Google Drive integration service — PRIMARY STORAGE.
 
-Uploads files to a shared Google Drive folder, organized by brand/type/channel.
-Uses a Service Account — credentials are read from the environment variable
-GOOGLE_SERVICE_ACCOUNT_JSON (the full JSON content of the key file).
+All content files are stored on Google Drive. Local disk is only used
+as a temporary buffer during upload/thumbnail generation.
 
 Folder structure on Drive:
   MERCURIO (root) / {brand} / {content_type} / {channel} / filename
+
+Uses a Service Account — credentials from env var GOOGLE_SERVICE_ACCOUNT_JSON.
 """
 
+import io
 import os
 import json
 import logging
-from typing import Optional
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ def _get_drive_service():
 
     creds_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
     if not creds_json or not ROOT_FOLDER_ID:
-        logger.warning("Google Drive not configured (missing GOOGLE_SERVICE_ACCOUNT_JSON or GOOGLE_DRIVE_FOLDER_ID)")
+        logger.warning("Google Drive not configured (missing env vars)")
         return None
 
     try:
@@ -73,7 +75,10 @@ def _find_or_create_folder(service, name: str, parent_id: str) -> str:
     """Find a folder by name under parent, or create it."""
     safe_name = _sanitize_drive_query_value(name)
     safe_parent = _sanitize_drive_query_value(parent_id)
-    query = f"name='{safe_name}' and '{safe_parent}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    query = (
+        f"name='{safe_name}' and '{safe_parent}' in parents "
+        f"and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    )
     results = service.files().list(q=query, fields="files(id, name)").execute()
     files = results.get("files", [])
 
@@ -90,32 +95,35 @@ def _find_or_create_folder(service, name: str, parent_id: str) -> str:
     return folder["id"]
 
 
+def is_configured() -> bool:
+    """Check if Drive integration is properly configured."""
+    return _get_drive_service() is not None
+
+
 def upload_to_drive(
-    file_path: str,
+    file_data: bytes,
     file_name: str,
+    mime_type: str,
     brand: str,
     content_type: str,
     channel: str,
-) -> Optional[str]:
+) -> Optional[Tuple[str, str]]:
     """
-    Upload a file to Google Drive in the correct folder structure.
-    Returns the Drive web view link, or None if not configured / fails.
+    Upload file bytes to Google Drive.
+    Returns (drive_file_id, webViewLink) or None on failure.
     """
     service = _get_drive_service()
     if not service or not ROOT_FOLDER_ID:
-        logger.info("Drive sync skipped (not configured)")
+        logger.warning("Drive upload skipped (not configured)")
         return None
 
     try:
-        from googleapiclient.http import MediaFileUpload
+        from googleapiclient.http import MediaIoBaseUpload
 
-        # Verify file exists locally
-        if not os.path.exists(file_path):
-            logger.error(f"Drive upload: local file not found: {file_path}")
-            return None
-
-        file_size = os.path.getsize(file_path)
-        logger.info(f"Drive upload starting: {file_name} ({file_size} bytes) → {brand}/{content_type}/{channel}")
+        logger.info(
+            f"Drive upload: {file_name} ({len(file_data)} bytes) "
+            f"→ {brand}/{content_type}/{channel}"
+        )
 
         brand_label = BRAND_LABELS.get(brand, brand)
         type_label = TYPE_LABELS.get(content_type, content_type)
@@ -123,29 +131,79 @@ def upload_to_drive(
 
         # Navigate/create folder structure
         brand_folder = _find_or_create_folder(service, brand_label, ROOT_FOLDER_ID)
-        logger.info(f"  Brand folder: {brand_label} → {brand_folder}")
         type_folder = _find_or_create_folder(service, type_label, brand_folder)
-        logger.info(f"  Type folder: {type_label} → {type_folder}")
         channel_folder = _find_or_create_folder(service, channel_label, type_folder)
-        logger.info(f"  Channel folder: {channel_label} → {channel_folder}")
 
-        # Upload file
+        # Upload file from memory
         file_metadata = {
             "name": file_name,
             "parents": [channel_folder],
         }
-        media = MediaFileUpload(file_path, resumable=True)
-        logger.info(f"  Uploading file to Drive folder {channel_folder}...")
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_data),
+            mimetype=mime_type or "application/octet-stream",
+            resumable=True,
+        )
         uploaded = service.files().create(
             body=file_metadata,
             media_body=media,
             fields="id, webViewLink",
         ).execute()
 
+        file_id = uploaded.get("id", "")
         link = uploaded.get("webViewLink", "")
-        logger.info(f"Drive upload OK: {file_name} → {link} (id={uploaded.get('id', '?')})")
-        return link
+        logger.info(f"Drive upload OK: {file_name} → id={file_id}, link={link}")
+        return (file_id, link)
 
     except Exception as e:
         logger.error(f"Drive upload failed for {file_name}: {e}", exc_info=True)
         return None
+
+
+def download_from_drive(drive_file_id: str) -> Optional[Tuple[bytes, str]]:
+    """
+    Download file content from Drive by file ID.
+    Returns (file_bytes, mime_type) or None on failure.
+    """
+    service = _get_drive_service()
+    if not service:
+        return None
+
+    try:
+        from googleapiclient.http import MediaIoBaseDownload
+
+        # Get file metadata for mime type
+        meta = service.files().get(
+            fileId=drive_file_id, fields="mimeType, name"
+        ).execute()
+        mime_type = meta.get("mimeType", "application/octet-stream")
+
+        # Download content
+        request = service.files().get_media(fileId=drive_file_id)
+        buffer = io.BytesIO()
+        downloader = MediaIoBaseDownload(buffer, request)
+        done = False
+        while not done:
+            _, done = downloader.next_chunk()
+
+        buffer.seek(0)
+        return (buffer.read(), mime_type)
+
+    except Exception as e:
+        logger.error(f"Drive download failed for {drive_file_id}: {e}", exc_info=True)
+        return None
+
+
+def delete_from_drive(drive_file_id: str) -> bool:
+    """Delete a file from Drive. Returns True on success."""
+    service = _get_drive_service()
+    if not service:
+        return False
+
+    try:
+        service.files().delete(fileId=drive_file_id).execute()
+        logger.info(f"Deleted from Drive: {drive_file_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Drive delete failed for {drive_file_id}: {e}", exc_info=True)
+        return False
