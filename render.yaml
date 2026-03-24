@@ -21,7 +21,7 @@ services:
       - key: MERCURIO_ENV
         value: production
       - key: CORS_ORIGINS
-        value: https://mercurio.onrender.com
+        value: https://mercurio-jeb1.onrender.com
       - key: UPLOAD_DIR
         value: /app/uploads
       - key: MERCURIO_MAX_UPLOAD_MB
