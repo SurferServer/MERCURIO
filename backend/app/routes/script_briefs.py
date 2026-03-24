@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import ScriptBrief, BriefTypeEnum, BrandEnum, AssigneeEnum
+from ..models import ScriptBrief, Content, Activity, BriefTypeEnum, BrandEnum, AssigneeEnum, StatusEnum
 from ..schemas import ScriptBriefCreate, ScriptBriefUpdate, ScriptBriefResponse
 from ..auth import get_current_user, require_admin, CurrentUser
 
@@ -77,6 +77,37 @@ def create_script_brief(
     db.add(sb)
     db.commit()
     db.refresh(sb)
+
+    # Auto-create a Content task linked to this Script/Brief
+    # Script → video, Brief → grafica
+    content_type = "video" if data.brief_type == "script" else "grafica"
+    has_assignee = bool(data.assigned_to)
+    content = Content(
+        title=data.title,
+        brand=data.brand,
+        content_type=content_type,
+        channel="organico",
+        source="interno",
+        assigned_to=data.assigned_to,
+        script=data.content,
+        notes=data.notes,
+        script_brief_id=sb.id,
+        status=StatusEnum.IN_LAVORAZIONE if has_assignee else StatusEnum.DA_ASSEGNARE,
+    )
+    db.add(content)
+    db.commit()
+    db.refresh(content)
+
+    # Mark script/brief as used
+    sb.is_used = True
+    db.commit()
+
+    # Log activity
+    db.add(Activity(content_id=content.id, action=f"Creato automaticamente da {data.brief_type} \"{data.title}\" ({user.name})"))
+    if has_assignee:
+        db.add(Activity(content_id=content.id, action=f"Assegnato a {data.assigned_to.capitalize()}"))
+    db.commit()
+
     return sb
 
 
