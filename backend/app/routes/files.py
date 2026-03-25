@@ -409,14 +409,37 @@ def get_thumbnail(
     )
 
     if needs_regen:
-        # Try to (re)generate from Drive
-        if content.drive_file_id and content.file_name:
-            result = download_from_drive(content.drive_file_id)
+        # Resolve drive_file_id — extract from drive_link if missing
+        file_id = content.drive_file_id
+        if not file_id and content.drive_link:
+            # Extract ID from links like:
+            #   https://drive.google.com/file/d/XXXXX/view
+            #   https://drive.google.com/open?id=XXXXX
+            import re as _re
+            m = _re.search(r'/d/([a-zA-Z0-9_-]+)', content.drive_link)
+            if not m:
+                m = _re.search(r'[?&]id=([a-zA-Z0-9_-]+)', content.drive_link)
+            if m:
+                file_id = m.group(1)
+                # Persist for future use so we don't re-extract every time
+                content.drive_file_id = file_id
+
+        if file_id:
+            # Use file_name if available, otherwise infer from content_type
+            fname = content.file_name
+            if not fname:
+                ext_map = {"video": "video.mp4", "grafica": "image.jpg"}
+                ct_val = content.content_type.value if content.content_type else "other"
+                fname = ext_map.get(ct_val, "file.jpg")
+
+            result = download_from_drive(file_id)
             if result:
                 file_bytes, _ = result
-                thumb_path = generate_thumbnail_from_bytes(file_bytes, content.file_name, content_id)
+                thumb_path = generate_thumbnail_from_bytes(file_bytes, fname, content_id)
                 if thumb_path:
                     content.thumbnail_path = thumb_path
+                    if not content.file_name:
+                        content.file_name = fname
                     db.commit()
                 else:
                     raise HTTPException(status_code=404, detail="Impossibile generare thumbnail per questo tipo di file")

@@ -89,7 +89,7 @@ class Content(Base):
 
     @property
     def has_thumbnail(self) -> bool:
-        return bool(self.thumbnail_path) or bool(self.drive_file_id and self.file_name)
+        return bool(self.thumbnail_path) or bool(self.drive_file_id) or bool(self.drive_link)
 
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

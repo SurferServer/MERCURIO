@@ -42,11 +42,12 @@ export default function ContentDetail({ showToast }) {
         deadline: data.deadline ? data.deadline.split('T')[0] : '',
         drive_link: data.drive_link || '',
       })
-      // Load real thumbnail if available
-      if (data.has_thumbnail) {
+      // Load real thumbnail — try for any content with a file on Drive
+      if (data.has_thumbnail || data.drive_link || data.drive_file_id) {
         api.getThumbnail(id).then(url => {
           if (url) setThumbUrl(url)
-        })
+          else setThumbUrl(null)
+        }).catch(() => setThumbUrl(null))
       } else {
         setThumbUrl(null)
       }
@@ -550,7 +551,8 @@ export default function ContentDetail({ showToast }) {
             {/* Actions */}
             {!isMarketing && (
               <div className="flex justify-between items-center pt-5 border-t border-stone-100">
-                {isAdmin ? (
+                {/* Admin can always delete; collaborators can delete before completion */}
+                {(isAdmin || (isCollaborator && !['completato', 'archiviato'].includes(item.status))) ? (
                   <button onClick={handleDelete} className="flex items-center gap-2 text-sm text-red-500 hover:text-red-700">
                     <Trash2 size={15} /> Elimina
                   </button>

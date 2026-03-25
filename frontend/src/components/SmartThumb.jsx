@@ -28,8 +28,8 @@ export default function SmartThumb({ item, size = 'sm' }) {
   // Try MERCURIO thumbnail (uploaded files) — regenerates on-demand from Drive if lost
   useEffect(() => {
     if (!item?.id) return
-    // Try if has_thumbnail OR if there's a drive_file_id (server can regenerate)
-    if (!item?.has_thumbnail && !item?.drive_file_id) return
+    // Try if has_thumbnail OR if there's a drive_file_id/drive_link (server can regenerate)
+    if (!item?.has_thumbnail && !item?.drive_file_id && !item?.drive_link) return
     let cancelled = false
     api.getThumbnail(item.id).then(url => {
       if (!cancelled && url) setSrc(url)
@@ -38,7 +38,7 @@ export default function SmartThumb({ item, size = 'sm' }) {
       if (!cancelled) setFailed(true)
     })
     return () => { cancelled = true }
-  }, [item?.id, item?.has_thumbnail, item?.drive_file_id])
+  }, [item?.id, item?.has_thumbnail, item?.drive_file_id, item?.drive_link])
 
   // Determine Drive thumbnail URL as fallback
   const driveFileId = item?.drive_file_id || extractDriveFileId(item?.drive_link)

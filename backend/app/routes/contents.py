@@ -381,12 +381,20 @@ def update_content(
 def delete_content(
     content_id: int,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_admin),
+    user: CurrentUser = Depends(require_editor),
 ):
-    """Only admin can delete."""
+    """Admin can always delete. Collaborators can delete only before completion."""
     content = db.query(Content).filter(Content.id == content_id).first()
     if not content:
         raise HTTPException(status_code=404, detail="Contenuto non trovato")
+
+    # Collaborators cannot delete completed or archived tasks
+    if not user.is_admin and content.status in ("completato", "archiviato"):
+        raise HTTPException(
+            status_code=403,
+            detail="Non puoi eliminare un contenuto già completato o archiviato",
+        )
+
     db.delete(content)
     db.commit()
 
