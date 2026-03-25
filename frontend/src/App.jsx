@@ -15,6 +15,28 @@ import ScriptBriefPage from './components/ScriptBriefPage'
 import CalendarPage from './components/CalendarPage'
 import Toast from './components/Toast'
 
+function SidebarAvatar({ userId, user }) {
+  const [imgError, setImgError] = React.useState(false)
+  if (!imgError) {
+    return (
+      <img
+        src={`/avatars/${userId}.jpg`}
+        alt={user.name}
+        onError={() => setImgError(true)}
+        className="w-8 h-8 rounded-full object-cover"
+      />
+    )
+  }
+  return (
+    <div
+      className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
+      style={{ background: user.color }}
+    >
+      {user.initials}
+    </div>
+  )
+}
+
 export default function App() {
   const { user, userId, isAdmin, isMarketing, logout, token } = useUser()
   const [toast, setToast] = useState(null)
@@ -87,12 +109,7 @@ export default function App() {
           </div>
           <div className="p-4 border-t border-white/10 relative z-10">
             <div className="flex items-center gap-3 mb-3">
-              <div
-                className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold"
-                style={{ background: user.color }}
-              >
-                {user.initials}
-              </div>
+              <SidebarAvatar userId={userId} user={user} />
               <div>
                 <div className="text-sm font-medium text-white/80">{user.name}</div>
                 <div className="text-[10px] text-white/30">{isAdmin ? 'Responsabile' : isMarketing ? 'Ufficio Marketing' : 'Collaboratore'}</div>
