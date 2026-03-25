@@ -42,7 +42,7 @@ function UserAvatar({ userId, user, size = 'w-16 h-16', textSize = 'text-xl', sh
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onCameraClick?.() }}
-          className="absolute -bottom-1 -right-1 w-7 h-7 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-500 hover:text-accent hover:border-accent transition-colors"
+          className="absolute -bottom-1 -right-1 w-7 h-7 bg-white rounded-full shadow-md border border-stone-200 flex items-center justify-center text-stone-500 hover:text-accent hover:border-accent transition-all opacity-0 group-hover:opacity-100"
           title="Cambia foto profilo"
         >
           <Camera size={14} />
