@@ -8,18 +8,19 @@ import SmartThumb from './SmartThumb'
 
 export default function Gallery() {
   const [items, setItems] = useState([])
+  const [loading, setLoading] = useState(true)
   const [brandFilter, setBrandFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const navigate = useNavigate()
 
   useEffect(() => {
-    api.listContents().then(active => {
-      api.listContents({ archived: true }).then(archived => {
-        const all = [...active, ...archived]
-        setItems(all.filter(i => ['completato', 'archiviato'].includes(i.status)))
-      })
-    })
+    // Single API call — only archived/completed content
+    api.listContents({ archived: true }).then(data => {
+      setItems(data)
+    }).catch(err => {
+      console.error('Gallery fetch failed:', err)
+    }).finally(() => setLoading(false))
   }, [])
 
   const filtered = useMemo(() => {
@@ -37,6 +38,8 @@ export default function Gallery() {
     if (!grouped[item.brand]) grouped[item.brand] = []
     grouped[item.brand].push(item)
   })
+
+  if (loading) return <div className="text-stone-400 py-20 text-center">Caricamento...</div>
 
   return (
     <div>

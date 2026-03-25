@@ -392,70 +392,77 @@ def download_file(
 @router.get("/{content_id}/thumbnail")
 def get_thumbnail(
     content_id: int,
+    regen: bool = False,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
     """Serve the thumbnail image for a content item.
-    Regenerates on-demand from Drive if the thumbnail file is missing or was never created.
-    Thumbnails are visible to ALL authenticated users regardless of content status."""
+
+    By default, returns existing thumbnail or 404 (fast path for lists).
+    With ?regen=true, regenerates from Drive if thumbnail is missing (detail view only).
+    Thumbnails are visible to ALL authenticated users regardless of content status.
+    """
     content = db.query(Content).filter(Content.id == content_id).first()
     if not content:
         raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
     # Check if thumbnail exists on disk
-    needs_regen = (
-        not content.thumbnail_path
-        or not os.path.exists(content.thumbnail_path)
+    has_local = (
+        content.thumbnail_path
+        and os.path.exists(content.thumbnail_path)
     )
 
-    if needs_regen:
-        # Resolve drive_file_id — extract from drive_link if missing
-        file_id = content.drive_file_id
-        if not file_id and content.drive_link:
-            # Extract ID from links like:
-            #   https://drive.google.com/file/d/XXXXX/view
-            #   https://drive.google.com/open?id=XXXXX
-            import re as _re
-            m = _re.search(r'/d/([a-zA-Z0-9_-]+)', content.drive_link)
-            if not m:
-                m = _re.search(r'[?&]id=([a-zA-Z0-9_-]+)', content.drive_link)
-            if m:
-                file_id = m.group(1)
-                # Persist for future use so we don't re-extract every time
-                content.drive_file_id = file_id
+    if has_local:
+        # Fast path — serve from disk
+        real_thumb = os.path.realpath(content.thumbnail_path)
+        real_thumb_dir = os.path.realpath(THUMB_DIR)
+        if not real_thumb.startswith(real_thumb_dir):
+            raise HTTPException(status_code=403, detail="Accesso non consentito")
+        return FileResponse(
+            content.thumbnail_path,
+            media_type="image/jpeg",
+            headers={"Cache-Control": "public, max-age=86400"},
+        )
 
-        if file_id:
-            # Use file_name if available, otherwise infer from content_type
-            fname = content.file_name
-            if not fname:
-                ext_map = {"video": "video.mp4", "grafica": "image.jpg"}
-                ct_val = content.content_type.value if content.content_type else "other"
-                fname = ext_map.get(ct_val, "file.jpg")
+    # No local thumbnail — only regenerate if explicitly requested
+    if not regen:
+        raise HTTPException(status_code=404, detail="Thumbnail non disponibile")
 
-            result = download_from_drive(file_id)
-            if result:
-                file_bytes, _ = result
-                thumb_path = generate_thumbnail_from_bytes(file_bytes, fname, content_id)
-                if thumb_path:
-                    content.thumbnail_path = thumb_path
-                    if not content.file_name:
-                        content.file_name = fname
-                    db.commit()
-                else:
-                    raise HTTPException(status_code=404, detail="Impossibile generare thumbnail per questo tipo di file")
-            else:
-                raise HTTPException(status_code=404, detail="File non disponibile su Drive")
-        else:
-            raise HTTPException(status_code=404, detail="Thumbnail non disponibile")
+    # ── On-demand regeneration from Drive (detail view) ──
+    file_id = content.drive_file_id
+    if not file_id and content.drive_link:
+        m = re.search(r'/d/([a-zA-Z0-9_-]+)', content.drive_link)
+        if not m:
+            m = re.search(r'[?&]id=([a-zA-Z0-9_-]+)', content.drive_link)
+        if m:
+            file_id = m.group(1)
+            content.drive_file_id = file_id
 
-    # Path traversal protection
-    real_thumb = os.path.realpath(content.thumbnail_path)
-    real_thumb_dir = os.path.realpath(THUMB_DIR)
-    if not real_thumb.startswith(real_thumb_dir):
-        raise HTTPException(status_code=403, detail="Accesso non consentito")
+    if not file_id:
+        raise HTTPException(status_code=404, detail="Thumbnail non disponibile")
+
+    fname = content.file_name
+    if not fname:
+        ext_map = {"video": "video.mp4", "grafica": "image.jpg"}
+        ct_val = content.content_type.value if content.content_type else "other"
+        fname = ext_map.get(ct_val, "file.jpg")
+
+    result = download_from_drive(file_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="File non disponibile su Drive")
+
+    file_bytes, _ = result
+    thumb_path = generate_thumbnail_from_bytes(file_bytes, fname, content_id)
+    if not thumb_path:
+        raise HTTPException(status_code=404, detail="Impossibile generare thumbnail per questo tipo di file")
+
+    content.thumbnail_path = thumb_path
+    if not content.file_name:
+        content.file_name = fname
+    db.commit()
 
     return FileResponse(
-        content.thumbnail_path,
+        thumb_path,
         media_type="image/jpeg",
         headers={"Cache-Control": "public, max-age=86400"},
     )

@@ -112,12 +112,14 @@ export const api = {
   },
 
   // Thumbnails (returns blob URL for <img src>)
-  getThumbnail: async (contentId) => {
+  // regen=true triggers on-demand generation from Drive (expensive, use only in detail view)
+  getThumbnail: async (contentId, { regen = false } = {}) => {
     const headers = {}
     if (_token) {
       headers['Authorization'] = `Bearer ${_token}`
     }
-    const res = await fetch(`${BASE}/files/${contentId}/thumbnail`, { headers })
+    const qs = regen ? '?regen=true' : ''
+    const res = await fetch(`${BASE}/files/${contentId}/thumbnail${qs}`, { headers })
     if (!res.ok) return null
     const blob = await res.blob()
     return URL.createObjectURL(blob)

@@ -42,9 +42,11 @@ export default function ContentDetail({ showToast }) {
         deadline: data.deadline ? data.deadline.split('T')[0] : '',
         drive_link: data.drive_link || '',
       })
-      // Load real thumbnail — try for any content with a file on Drive
-      if (data.has_thumbnail || data.drive_link || data.drive_file_id) {
-        api.getThumbnail(id).then(url => {
+      // Load thumbnail — regen from Drive only for content from 2026+
+      const isRecent = data.created_at && data.created_at >= '2026-01-01T00:00:00'
+      const canTryThumb = data.has_thumbnail || (isRecent && (data.drive_link || data.drive_file_id))
+      if (canTryThumb) {
+        api.getThumbnail(id, { regen: isRecent }).then(url => {
           if (url) setThumbUrl(url)
           else setThumbUrl(null)
         }).catch(() => setThumbUrl(null))

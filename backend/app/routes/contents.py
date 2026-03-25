@@ -49,6 +49,8 @@ def list_contents(
     assigned_to: Optional[str] = None,
     search: Optional[str] = None,
     archived: bool = False,
+    limit: int = Query(default=200, le=500),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -87,7 +89,7 @@ def list_contents(
         q = q.filter(
             (Content.title.ilike(term)) | (Content.notes.ilike(term))
         )
-    return q.order_by(Content.created_at.desc()).all()
+    return q.order_by(Content.created_at.desc()).offset(offset).limit(limit).all()
 
 
 @router.get("/stats", response_model=StatsResponse)
@@ -95,20 +97,45 @@ def get_stats(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    now = datetime.now(timezone.utc).replace(tzinfo=None)  # naive UTC, matches PostgreSQL DateTime
-    active = db.query(Content).filter(Content.status != StatusEnum.ARCHIVIATO).all()
+    """Compute stats using SQL COUNT — no full-table Python scan."""
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
 
-    da_assegnare = sum(1 for c in active if c.status == StatusEnum.DA_ASSEGNARE)
-    in_lavorazione = sum(1 for c in active if c.status == StatusEnum.IN_LAVORAZIONE)
-    in_revisione = sum(1 for c in active if c.status == StatusEnum.IN_REVISIONE)
-    completato = sum(1 for c in active if c.status == StatusEnum.COMPLETATO)
-    archiviato = db.query(Content).filter(Content.status == StatusEnum.ARCHIVIATO).count()
+    # Single query: count by status
+    status_counts = (
+        db.query(Content.status, func.count())
+        .group_by(Content.status)
+        .all()
+    )
+    sc = {s.value if hasattr(s, 'value') else s: c for s, c in status_counts}
+
+    da_assegnare = sc.get("da-assegnare", 0)
+    in_lavorazione = sc.get("in-lavorazione", 0)
+    in_revisione = sc.get("in-revisione", 0)
+    completato = sc.get("completato", 0)
+    archiviato = sc.get("archiviato", 0)
+    totale_attivi = da_assegnare + in_lavorazione + in_revisione + completato
 
     working_statuses = [StatusEnum.IN_LAVORAZIONE, StatusEnum.IN_REVISIONE]
-    federico_attivi = sum(1 for c in active if c.assigned_to and c.assigned_to.value == "federico" and c.status in working_statuses)
-    marzia_attivi = sum(1 for c in active if c.assigned_to and c.assigned_to.value == "marzia" and c.status in working_statuses)
-    da_marketing = sum(1 for c in active if c.source and c.source.value == "marketing")
-    scaduti = sum(1 for c in active if c.deadline and c.deadline < now and c.status not in [StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO])
+
+    federico_attivi = db.query(func.count()).filter(
+        Content.assigned_to == AssigneeEnum.FEDERICO,
+        Content.status.in_(working_statuses),
+    ).scalar()
+
+    marzia_attivi = db.query(func.count()).filter(
+        Content.assigned_to == AssigneeEnum.MARZIA,
+        Content.status.in_(working_statuses),
+    ).scalar()
+
+    da_marketing = db.query(func.count()).filter(
+        Content.source == SourceEnum.MARKETING,
+        Content.status != StatusEnum.ARCHIVIATO,
+    ).scalar()
+
+    scaduti = db.query(func.count()).filter(
+        Content.deadline < now,
+        Content.status.notin_([StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO]),
+    ).scalar()
 
     return StatsResponse(
         da_assegnare=da_assegnare,
@@ -116,7 +143,7 @@ def get_stats(
         in_revisione=in_revisione,
         completato=completato,
         archiviato=archiviato,
-        totale_attivi=len(active),
+        totale_attivi=totale_attivi,
         federico_attivi=federico_attivi,
         marzia_attivi=marzia_attivi,
         da_marketing=da_marketing,
@@ -129,24 +156,42 @@ def get_archive_summary(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    archived = db.query(Content).filter(
-        Content.status.in_([StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO])
-    ).all()
+    """Compute archive summary using SQL aggregation — no full-table Python scan."""
+    archived_filter = Content.status.in_([StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO])
 
-    summaries = []
-    for brand_key, brand_label in BRAND_LABELS.items():
-        brand_items = [c for c in archived if c.brand and c.brand.value == brand_key]
-        summaries.append(BrandSummary(
-            brand=brand_key,
-            brand_label=brand_label,
-            totale=len(brand_items),
-            video=sum(1 for c in brand_items if c.content_type and c.content_type.value == "video"),
-            grafica=sum(1 for c in brand_items if c.content_type and c.content_type.value == "grafica"),
-            sviluppo=sum(1 for c in brand_items if c.content_type and c.content_type.value == "sviluppo"),
-            organico=sum(1 for c in brand_items if c.channel and c.channel.value == "organico"),
-            adv=sum(1 for c in brand_items if c.channel and c.channel.value == "adv"),
-        ))
-    return summaries
+    rows = (
+        db.query(
+            Content.brand,
+            Content.content_type,
+            Content.channel,
+            func.count().label("cnt"),
+        )
+        .filter(archived_filter)
+        .group_by(Content.brand, Content.content_type, Content.channel)
+        .all()
+    )
+
+    # Build summaries from aggregated rows
+    brand_data = {}
+    for brand_key in BRAND_LABELS:
+        brand_data[brand_key] = {"totale": 0, "video": 0, "grafica": 0, "sviluppo": 0, "organico": 0, "adv": 0}
+
+    for brand, ctype, channel, cnt in rows:
+        bk = brand.value if hasattr(brand, 'value') else brand
+        if bk not in brand_data:
+            continue
+        brand_data[bk]["totale"] += cnt
+        ct = ctype.value if hasattr(ctype, 'value') else ctype
+        if ct in brand_data[bk]:
+            brand_data[bk][ct] += cnt
+        ch = channel.value if hasattr(channel, 'value') else channel
+        if ch in brand_data[bk]:
+            brand_data[bk][ch] += cnt
+
+    return [
+        BrandSummary(brand=bk, brand_label=BRAND_LABELS[bk], **data)
+        for bk, data in brand_data.items()
+    ]
 
 
 @router.get("/export/excel")
