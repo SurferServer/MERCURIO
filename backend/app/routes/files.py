@@ -40,7 +40,7 @@ router = APIRouter(prefix="/api/files", tags=["files"])
 os.makedirs(THUMB_DIR, exist_ok=True)
 
 # ── Security: file validation ────────────────────────────
-MAX_FILE_SIZE_MB = int(os.getenv("MERCURIO_MAX_UPLOAD_MB", "50"))
+MAX_FILE_SIZE_MB = int(os.getenv("MERCURIO_MAX_UPLOAD_MB", "100"))
 MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {

@@ -356,7 +356,7 @@ export default function ContentDetail({ showToast }) {
                             {dragOver ? 'Rilascia per caricare' : 'Trascina qui il file oppure clicca per selezionarlo'}
                           </div>
                           <div className="text-xs text-stone-400">
-                            Video, immagini, file di progetto (max 50 MB)
+                            Video, immagini, file di progetto (max 100 MB)
                           </div>
                         </>
                       )}
