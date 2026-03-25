@@ -122,6 +122,7 @@ def upload_to_drive(
     brand: str,
     content_type: str,
     channel: str,
+    title: str = "",
 ) -> Optional[Tuple[str, str]]:
     """
     Upload file bytes to Google Drive.
@@ -137,22 +138,24 @@ def upload_to_drive(
 
         logger.info(
             f"Drive upload: {file_name} ({len(file_data)} bytes) "
-            f"→ {brand}/{content_type}/{channel}"
+            f"→ {brand}/{content_type}/{channel}/{title}"
         )
 
         brand_label = BRAND_LABELS.get(brand, brand)
         type_label = TYPE_LABELS.get(content_type, content_type)
         channel_label = CHANNEL_LABELS.get(channel, channel)
 
-        # Navigate/create folder structure
+        # Navigate/create folder structure: brand / type / channel / title
         brand_folder = _find_or_create_folder(service, brand_label, ROOT_FOLDER_ID)
         type_folder = _find_or_create_folder(service, type_label, brand_folder)
         channel_folder = _find_or_create_folder(service, channel_label, type_folder)
+        # Sottocartella con il nome del contenuto
+        content_folder = _find_or_create_folder(service, title.strip() or file_name, channel_folder)
 
         # Upload file from memory
         file_metadata = {
             "name": file_name,
-            "parents": [channel_folder],
+            "parents": [content_folder],
         }
         media = MediaIoBaseUpload(
             io.BytesIO(file_data),
@@ -200,11 +203,13 @@ def upload_script_text_to_drive(
         brand_folder = _find_or_create_folder(service, brand_label, ROOT_FOLDER_ID)
         type_folder = _find_or_create_folder(service, type_label, brand_folder)
         channel_folder = _find_or_create_folder(service, channel_label, type_folder)
+        # Stessa sottocartella del contenuto
+        content_folder = _find_or_create_folder(service, title.strip() or "Script", channel_folder)
 
         file_name = f"{title} - Script.txt"
         file_metadata = {
             "name": file_name,
-            "parents": [channel_folder],
+            "parents": [content_folder],
         }
         media = MediaIoBaseUpload(
             io.BytesIO(script_text.encode("utf-8")),

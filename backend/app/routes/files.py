@@ -140,6 +140,7 @@ async def upload_file(
             brand=content.brand.value if content.brand else "other",
             content_type=content.content_type.value if content.content_type else "other",
             channel=content.channel.value if content.channel else "other",
+            title=content.title,
         )
     except Exception as e:
         logger.error(f"Drive upload exception for content {content_id}: {e}", exc_info=True)
