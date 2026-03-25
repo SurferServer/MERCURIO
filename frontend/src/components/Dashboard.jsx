@@ -1,15 +1,58 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, Clock, Users, CheckCircle2, Inbox, Megaphone, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertTriangle, Clock, Users, CheckCircle2, Inbox, Megaphone, ChevronDown, ChevronUp, Archive, CalendarClock } from 'lucide-react'
 import { api } from '../api/client'
-import { BRANDS, TYPES, CHANNELS } from '../api/constants'
+import { BRANDS, TYPES, CHANNELS, STATUSES } from '../api/constants'
 import Tag from './Tag'
 import { Avatar } from './Tag'
 import SmartThumb from './SmartThumb'
 
+/** How many days before deadline to show the warning */
+const DEADLINE_WARN_DAYS = 3
+
+function daysUntil(dateStr) {
+  if (!dateStr) return null
+  const d = new Date(dateStr)
+  const now = new Date()
+  now.setHours(0, 0, 0, 0)
+  d.setHours(0, 0, 0, 0)
+  return Math.ceil((d - now) / 86400000)
+}
+
+function deadlineLabel(days) {
+  if (days < 0) return `Scaduto da ${Math.abs(days)}g`
+  if (days === 0) return 'Scade oggi'
+  if (days === 1) return 'Scade domani'
+  return `Scade tra ${days}g`
+}
+
+function deadlineColor(days) {
+  if (days < 0) return 'text-red-600 bg-red-50'
+  if (days === 0) return 'text-red-600 bg-red-50'
+  if (days <= 2) return 'text-amber-600 bg-amber-50'
+  return 'text-orange-500 bg-orange-50'
+}
+
+/** Row component used in all three panels */
+function ItemRow({ item, navigate, extra }) {
+  return (
+    <div
+      onClick={() => navigate(`/contenuto/${item.id}`)}
+      className="flex items-center gap-3 px-5 py-3 border-b border-stone-100 last:border-0 hover:bg-stone-50 cursor-pointer transition-colors"
+    >
+      <SmartThumb item={item} size="xs" />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium truncate text-stone-700">{item.title}</div>
+      </div>
+      <Tag bg={BRANDS[item.brand]?.bg} text={BRANDS[item.brand]?.text}>{BRANDS[item.brand]?.label}</Tag>
+      {extra}
+      <Avatar name={item.assigned_to} />
+    </div>
+  )
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState(null)
-  const [recent, setRecent] = useState([])
   const [allItems, setAllItems] = useState([])
   const [expandedPanel, setExpandedPanel] = useState(null)
   const navigate = useNavigate()
@@ -23,16 +66,33 @@ export default function Dashboard() {
         console.error('Stats fetch failed:', err)
         setError('Impossibile caricare le statistiche')
       }),
-      api.listContents().then(items => {
-        setAllItems(items)
-        setRecent(items.slice(0, 8))
-      }).catch(err => {
+      api.listContents().then(setAllItems).catch(err => {
         console.error('Contents fetch failed:', err)
       }),
     ]).finally(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="text-mercury-600/50 py-20 text-center">Caricamento...</div>
+  // ── Derived lists ──────────────────────────────────────
+  const inLavorazione = useMemo(() =>
+    allItems.filter(i => i.status === 'in-lavorazione' || i.status === 'in-revisione'),
+  [allItems])
+
+  const urgenti = useMemo(() => {
+    return allItems
+      .filter(i => {
+        if (i.status === 'completato' || i.status === 'archiviato') return false
+        const d = daysUntil(i.deadline)
+        return d !== null && d <= DEADLINE_WARN_DAYS
+      })
+      .sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline))
+  }, [allItems])
+
+  const daArchiviare = useMemo(() =>
+    allItems.filter(i => i.status === 'completato'),
+  [allItems])
+
+  // ── Loading / error ────────────────────────────────────
+  if (loading) return <div className="text-stone-400 py-20 text-center">Caricamento...</div>
 
   if (!stats && error) return (
     <div className="py-20 text-center">
@@ -41,14 +101,15 @@ export default function Dashboard() {
     </div>
   )
 
-  if (!stats) return <div className="text-mercury-600/50 py-20 text-center">Caricamento...</div>
+  if (!stats) return <div className="text-stone-400 py-20 text-center">Caricamento...</div>
 
+  // ── Stat cards ─────────────────────────────────────────
   const statCards = [
     { id: 'da-assegnare', label: 'Da Assegnare', value: stats.da_assegnare, icon: Inbox, color: 'text-orange-600', bg: 'bg-orange-50', ring: 'ring-orange-200' },
     { id: 'in-lavorazione', label: 'In Lavorazione', value: stats.in_lavorazione, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', ring: 'ring-amber-200' },
     { id: 'in-revisione', label: 'In Revisione', value: stats.in_revisione, icon: Users, color: 'text-pink-600', bg: 'bg-pink-50', ring: 'ring-pink-200' },
     { id: 'completato', label: 'Completati', value: stats.completato, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50', ring: 'ring-green-200' },
-    { id: 'archiviato', label: 'Archiviati', value: stats.archiviato, icon: CheckCircle2, color: 'text-stone-500', bg: 'bg-stone-50', ring: 'ring-stone-200' },
+    { id: 'archiviato', label: 'Archiviati', value: stats.archiviato, icon: Archive, color: 'text-stone-500', bg: 'bg-stone-50', ring: 'ring-stone-200' },
     { id: 'marketing', label: 'Richieste MKT', value: stats.da_marketing, icon: Megaphone, color: 'text-violet-600', bg: 'bg-violet-50', ring: 'ring-violet-200' },
   ]
 
@@ -64,6 +125,7 @@ export default function Dashboard() {
       <h2 className="text-2xl font-bold mb-1 text-stone-800">Dashboard</h2>
       <p className="text-sm text-stone-500 mb-6">Panoramica produzione contenuti</p>
 
+      {/* ── Alert: scaduti ─────────────────────────────── */}
       {stats.scaduti > 0 && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
           <AlertTriangle size={20} className="text-red-500" />
@@ -71,7 +133,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stat Cards */}
+      {/* ── Stat Cards ─────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
         {statCards.map(({ id, label, value, icon: Icon, color, bg, ring }) => (
           <div
@@ -91,66 +153,162 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Expand Panel */}
+      {/* ── Expand Panel (click on stat card) ──────────── */}
       {expandedPanel && (
         <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 mb-6 overflow-hidden">
           {getPanelItems(expandedPanel).length === 0 ? (
             <div className="p-6 text-center text-stone-400 text-sm">Nessun elemento</div>
           ) : (
             getPanelItems(expandedPanel).map(item => (
-              <div
-                key={item.id}
-                onClick={() => navigate(`/contenuto/${item.id}`)}
-                className="flex items-center gap-3 px-5 py-3 border-b border-stone-100 last:border-0 hover:bg-mercury-50 cursor-pointer transition-colors"
-              >
-                <SmartThumb item={item} size="xs" />
-                <span className="flex-1 text-sm font-medium truncate text-stone-700">{item.title}</span>
-                <Tag bg={BRANDS[item.brand]?.bg} text={BRANDS[item.brand]?.text}>{BRANDS[item.brand]?.label}</Tag>
-                <Avatar name={item.assigned_to} />
-              </div>
+              <ItemRow key={item.id} item={item} navigate={navigate} />
             ))
           )}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Recent */}
+      {/* ── Three-panel grid ───────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+        {/* 1) In lavorazione */}
         <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
-          <div className="px-5 py-4 font-semibold text-sm border-b border-stone-100 text-stone-700">Ultimi contenuti</div>
-          {recent.length === 0 ? (
-            <div className="p-8 text-center text-stone-400 text-sm">Nessun contenuto.</div>
+          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
+            <Clock size={16} className="text-amber-500" />
+            <span className="font-semibold text-sm text-stone-700">In lavorazione</span>
+            <span className="ml-auto text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{inLavorazione.length}</span>
+          </div>
+          {inLavorazione.length === 0 ? (
+            <div className="p-8 text-center text-stone-400 text-sm">Nessun task in corso.</div>
           ) : (
-            recent.map(item => (
-              <div
+            inLavorazione.map(item => (
+              <ItemRow
                 key={item.id}
-                className="px-5 py-3 border-b border-stone-50 flex items-center gap-3 hover:bg-mercury-50 cursor-pointer transition-colors"
-                onClick={() => navigate(`/contenuto/${item.id}`)}
-              >
-                <SmartThumb item={item} size="xs" />
-                <span className="flex-1 text-sm font-medium truncate text-stone-700">{item.title}</span>
-                <Tag bg={BRANDS[item.brand]?.bg} text={BRANDS[item.brand]?.text}>{BRANDS[item.brand]?.label}</Tag>
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: item.status === 'completato' ? '#16a34a' : item.status === 'in-lavorazione' ? '#f59e0b' : item.status === 'in-revisione' ? '#ec4899' : '#f57c00' }} />
-              </div>
+                item={item}
+                navigate={navigate}
+                extra={
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded ${
+                    item.status === 'in-revisione' ? 'bg-pink-100 text-pink-700' : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    {item.status === 'in-revisione' ? 'Revisione' : 'Lavorazione'}
+                  </span>
+                }
+              />
             ))
           )}
         </div>
 
-        {/* Workload */}
+        {/* 2) Scadenze imminenti */}
         <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
-          <div className="px-5 py-4 font-semibold text-sm border-b border-stone-100 text-stone-700">Carico di lavoro</div>
+          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
+            <CalendarClock size={16} className="text-red-500" />
+            <span className="font-semibold text-sm text-stone-700">Scadenze imminenti</span>
+            {urgenti.length > 0 && (
+              <span className="ml-auto text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{urgenti.length}</span>
+            )}
+          </div>
+          {urgenti.length === 0 ? (
+            <div className="p-8 text-center text-stone-400 text-sm">Nessuna scadenza nei prossimi {DEADLINE_WARN_DAYS} giorni.</div>
+          ) : (
+            urgenti.map(item => {
+              const days = daysUntil(item.deadline)
+              return (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  navigate={navigate}
+                  extra={
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap ${deadlineColor(days)}`}>
+                      {deadlineLabel(days)}
+                    </span>
+                  }
+                />
+              )
+            })
+          )}
+        </div>
+
+        {/* 3) Da archiviare */}
+        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
+            <Archive size={16} className="text-green-600" />
+            <span className="font-semibold text-sm text-stone-700">Da archiviare</span>
+            {daArchiviare.length > 0 && (
+              <span className="ml-auto text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">{daArchiviare.length}</span>
+            )}
+          </div>
+          {daArchiviare.length === 0 ? (
+            <div className="p-8 text-center text-stone-400 text-sm">Nessun task completato in attesa di archiviazione.</div>
+          ) : (
+            <>
+              {daArchiviare.map(item => {
+                const completedDays = item.completed_at ? daysUntil(item.completed_at) : null
+                const waitLabel = completedDays !== null && completedDays < 0
+                  ? `${Math.abs(completedDays)}g fa`
+                  : 'oggi'
+                return (
+                  <ItemRow
+                    key={item.id}
+                    item={item}
+                    navigate={navigate}
+                    extra={
+                      <span className="text-[10px] text-stone-400 whitespace-nowrap">
+                        Completato {waitLabel}
+                      </span>
+                    }
+                  />
+                )
+              })}
+              {daArchiviare.length > 3 && (
+                <div className="px-5 py-2.5 bg-green-50/50 text-center">
+                  <span className="text-xs text-green-700 font-medium">
+                    {daArchiviare.length} task da verificare e archiviare
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ── Workload ───────────────────────────────────── */}
+      <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 font-semibold text-sm border-b border-stone-100 text-stone-700">Carico di lavoro</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-stone-100">
           {[
             { name: 'federico', label: 'Federico', count: stats.federico_attivi, color: '#ff9800' },
             { name: 'marzia', label: 'Marzia', count: stats.marzia_attivi, color: '#ef4444' },
-          ].map(({ name, label, count, color }) => (
-            <div key={name} className="px-5 py-4 border-b border-stone-50 flex items-center gap-4">
-              <Avatar name={name} className="w-9 h-9 text-sm" />
-              <span className="flex-1 font-medium text-stone-700">{label}</span>
-              <div className="w-32 h-2 bg-stone-100 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((count / Math.max(allItems.length, 1)) * 100, 100)}%`, background: color }} />
+          ].map(({ name, label, count, color }) => {
+            const personItems = inLavorazione.filter(i => i.assigned_to === name)
+            return (
+              <div key={name} className="px-5 py-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <Avatar name={name} className="w-9 h-9 text-sm" />
+                  <span className="font-medium text-stone-700">{label}</span>
+                  <span className="ml-auto text-2xl font-bold text-stone-800">{count}</span>
+                </div>
+                <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden mb-3">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((count / 10) * 100, 100)}%`, background: color }} />
+                </div>
+                {personItems.length > 0 && (
+                  <div className="space-y-1">
+                    {personItems.slice(0, 4).map(item => (
+                      <div
+                        key={item.id}
+                        onClick={() => navigate(`/contenuto/${item.id}`)}
+                        className="flex items-center gap-2 text-xs text-stone-600 hover:text-stone-900 cursor-pointer py-1 px-2 -mx-2 rounded hover:bg-stone-50 transition-colors"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: item.status === 'in-revisione' ? '#ec4899' : color }} />
+                        <span className="truncate">{item.title}</span>
+                        <Tag bg={BRANDS[item.brand]?.bg} text={BRANDS[item.brand]?.text}>{BRANDS[item.brand]?.label}</Tag>
+                      </div>
+                    ))}
+                    {personItems.length > 4 && (
+                      <div className="text-[10px] text-stone-400 pl-2">+{personItems.length - 4} altri</div>
+                    )}
+                  </div>
+                )}
               </div>
-              <span className="text-2xl font-bold text-stone-800 w-8 text-right">{count}</span>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </div>
     </div>
