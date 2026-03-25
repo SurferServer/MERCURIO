@@ -125,6 +125,7 @@ export default function ScriptBriefPage({ showToast }) {
               <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Assegna a (opzionale)</label>
               <select value={form.assigned_to} onChange={set('assigned_to')} className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm">
                 <option value="">Non assegnato</option>
+                <option value="fulvio">Fulvio</option>
                 <option value="federico">Federico</option>
                 <option value="marzia">Marzia</option>
               </select>
@@ -149,6 +150,7 @@ export default function ScriptBriefPage({ showToast }) {
         </select>
         <select value={filters.assigned_to} onChange={setFilter('assigned_to')} className="px-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80">
           <option value="">Tutti</option>
+          <option value="fulvio">Fulvio</option>
           <option value="federico">Federico</option>
           <option value="marzia">Marzia</option>
         </select>

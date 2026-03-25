@@ -199,6 +199,7 @@ export default function ContentDetail({ showToast }) {
                 {editing && isAdmin ? (
                   <select value={form.assigned_to} onChange={set('assigned_to')} className="w-full px-2 py-1 border border-stone-200 rounded text-sm">
                     <option value="">Non assegnato</option>
+                    <option value="fulvio">Fulvio</option>
                     <option value="federico">Federico</option>
                     <option value="marzia">Marzia</option>
                   </select>

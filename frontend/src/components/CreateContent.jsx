@@ -128,6 +128,7 @@ export default function CreateContent({ showToast }) {
             <label className="block text-sm font-semibold mb-1.5 text-stone-700">Assegna a</label>
             <select value={form.assigned_to} onChange={set('assigned_to')} className={inputCls}>
               <option value="">Non assegnato</option>
+              <option value="fulvio">Fulvio</option>
               <option value="federico">Federico</option>
               <option value="marzia">Marzia</option>
             </select>

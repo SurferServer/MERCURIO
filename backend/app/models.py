@@ -35,6 +35,7 @@ class StatusEnum(str, enum.Enum):
 
 
 class AssigneeEnum(str, enum.Enum):
+    FULVIO = "fulvio"
     FEDERICO = "federico"
     MARZIA = "marzia"
 
