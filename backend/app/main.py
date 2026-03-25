@@ -77,25 +77,19 @@ def _run_migrations():
         except Exception as e:
             logger.info(f"Enum migration skipped (probably SQLite): {e}")
 
-    # Add 'fulvio' to assigneeenum if missing
+    # Add 'FULVIO' to assigneeenum if missing
+    # SQLAlchemy uses enum NAMES (uppercase) as DB values by default
     try:
-        with engine.connect() as conn:
-            result = conn.execute(text(
-                "SELECT EXISTS (SELECT 1 FROM pg_enum WHERE enumlabel = 'fulvio' "
-                "AND enumtypid = (SELECT oid FROM pg_type WHERE typname = 'assigneeenum'))"
-            ))
-            exists = result.scalar()
-        if not exists:
-            raw_conn = engine.raw_connection()
-            try:
-                raw_conn.set_isolation_level(0)  # AUTOCOMMIT
-                cursor = raw_conn.cursor()
-                cursor.execute("ALTER TYPE assigneeenum ADD VALUE IF NOT EXISTS 'fulvio' BEFORE 'federico'")
-                cursor.close()
-                raw_conn.commit()
-                logger.info("Added 'fulvio' to assigneeenum")
-            finally:
-                raw_conn.close()
+        raw_conn = engine.raw_connection()
+        try:
+            raw_conn.set_isolation_level(0)  # AUTOCOMMIT
+            cursor = raw_conn.cursor()
+            cursor.execute("ALTER TYPE assigneeenum ADD VALUE IF NOT EXISTS 'FULVIO' BEFORE 'FEDERICO'")
+            cursor.close()
+            raw_conn.commit()
+            logger.info("Added 'FULVIO' to assigneeenum")
+        finally:
+            raw_conn.close()
     except Exception as e:
         logger.info(f"Assignee enum migration skipped (probably SQLite): {e}")
 
