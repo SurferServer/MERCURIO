@@ -117,10 +117,13 @@ for i, row in enumerate(rows):
 
         content_id = r.json()["id"]
 
-        # 2. Archivia e collega il link Drive
+        # 2. Archivia e collega il link Drive con la data originale
         update = {"status": "archiviato"}
         if link:
             update["drive_link"] = link
+        if completed_at:
+            update["completed_at"] = completed_at
+            update["archived_at"] = completed_at
         r2 = requests.patch(f"{BASE}/contents/{content_id}", json=update, headers=headers)
 
         if r2.status_code == 200:

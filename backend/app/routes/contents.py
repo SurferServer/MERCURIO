@@ -331,11 +331,11 @@ def update_content(
 
     if data.status:
         if data.status == "completato":
-            content.completed_at = datetime.now(timezone.utc)
+            content.completed_at = data.completed_at or datetime.now(timezone.utc)
         elif data.status == "archiviato":
-            content.archived_at = datetime.now(timezone.utc)
+            content.archived_at = data.archived_at or datetime.now(timezone.utc)
             if not content.completed_at:
-                content.completed_at = datetime.now(timezone.utc)
+                content.completed_at = data.completed_at or datetime.now(timezone.utc)
 
     if data.assigned_to and content.status == StatusEnum.DA_ASSEGNARE:
         content.status = StatusEnum.IN_LAVORAZIONE

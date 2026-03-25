@@ -51,6 +51,8 @@ class ContentUpdate(BaseModel):
     deadline: Optional[datetime] = None
     drive_link: Optional[str] = None
     script_brief_id: Optional[int] = None
+    completed_at: Optional[datetime] = None
+    archived_at: Optional[datetime] = None
 
     @field_validator('title')
     @classmethod
