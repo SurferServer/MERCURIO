@@ -325,30 +325,37 @@ def get_thumbnail(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Serve the thumbnail image for a content item."""
+    """Serve the thumbnail image for a content item.
+    Regenerates on-demand from Drive if the thumbnail file is missing or was never created."""
     content = db.query(Content).filter(Content.id == content_id).first()
-    if not content or not content.thumbnail_path:
-        raise HTTPException(status_code=404, detail="Thumbnail non disponibile")
+    if not content:
+        raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
     # Access control
     _check_content_access(content, user)
 
-    if not os.path.exists(content.thumbnail_path):
-        # Thumbnail lost (redeploy) — try to regenerate from Drive
-        if content.drive_file_id:
+    # Check if thumbnail exists on disk
+    needs_regen = (
+        not content.thumbnail_path
+        or not os.path.exists(content.thumbnail_path)
+    )
+
+    if needs_regen:
+        # Try to (re)generate from Drive
+        if content.drive_file_id and content.file_name:
             result = download_from_drive(content.drive_file_id)
-            if result and content.file_name:
+            if result:
                 file_bytes, _ = result
                 thumb_path = generate_thumbnail_from_bytes(file_bytes, content.file_name, content_id)
                 if thumb_path:
                     content.thumbnail_path = thumb_path
                     db.commit()
                 else:
-                    raise HTTPException(status_code=404, detail="Impossibile rigenerare thumbnail")
+                    raise HTTPException(status_code=404, detail="Impossibile generare thumbnail per questo tipo di file")
             else:
                 raise HTTPException(status_code=404, detail="File non disponibile su Drive")
         else:
-            raise HTTPException(status_code=404, detail="Thumbnail non trovata sul disco")
+            raise HTTPException(status_code=404, detail="Thumbnail non disponibile")
 
     # Path traversal protection
     real_thumb = os.path.realpath(content.thumbnail_path)
