@@ -72,6 +72,30 @@ export const api = {
     }
     return res.json()
   },
+  uploadMultiFile: async (contentId, files) => {
+    const form = new FormData()
+    for (const file of files) {
+      form.append('files', file)
+    }
+    const headers = {}
+    if (_token) {
+      headers['Authorization'] = `Bearer ${_token}`
+    }
+    const res = await fetch(`${BASE}/files/${contentId}/upload-multi`, {
+      method: 'POST',
+      body: form,
+      headers,
+    })
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('mercurio:unauthorized'))
+      throw new Error('Sessione scaduta')
+    }
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Upload fallito' }))
+      throw new Error(err.detail || 'Upload fallito')
+    }
+    return res.json()
+  },
   getDownloadUrl: (contentId) => `${BASE}/files/${contentId}/download`,
 
   // Download with auth (returns blob URL)

@@ -237,9 +237,9 @@ def get_content(
 def create_content(
     data: ContentCreate,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_admin),
+    user: CurrentUser = Depends(require_editor),
 ):
-    """Only admin can create content."""
+    """Admin and collaborators can create content."""
     content = Content(
         title=data.title,
         brand=data.brand,

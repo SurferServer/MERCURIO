@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText } from 'lucide-react'
+import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText, Images, X, CheckCircle, AlertCircle } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS, SOURCES, STATUSES } from '../api/constants'
 import { useUser } from '../context/UserContext'
@@ -18,6 +18,11 @@ export default function ContentDetail({ showToast }) {
   const [form, setForm] = useState({})
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [showMultiUpload, setShowMultiUpload] = useState(false)
+  const [multiFiles, setMultiFiles] = useState([])
+  const [multiUploading, setMultiUploading] = useState(false)
+  const [multiResults, setMultiResults] = useState(null)
+  const multiInput = useRef(null)
   const [activities, setActivities] = useState([])
   const [comments, setComments] = useState([])
   const [newComment, setNewComment] = useState('')
@@ -359,6 +364,131 @@ export default function ContentDetail({ showToast }) {
                 </div>
               )}
             </div>
+
+            {/* Multi-upload for grafiche */}
+            {item.content_type === 'grafica' && showUploadZone && (
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[11px] text-stone-500 uppercase tracking-wide flex items-center gap-1.5">
+                    <Images size={13} /> Carica formati multipli
+                  </div>
+                  {!showMultiUpload && (
+                    <button
+                      onClick={() => setShowMultiUpload(true)}
+                      className="text-xs text-accent hover:underline font-medium"
+                    >
+                      Apri pannello upload
+                    </button>
+                  )}
+                </div>
+
+                {showMultiUpload && (
+                  <div className="border border-violet-200 bg-violet-50/30 rounded-xl p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm text-stone-600">
+                        Carica tutti i formati (JPG, PNG, AI, PSD...) nella stessa cartella Drive del contenuto.
+                      </p>
+                      <button onClick={() => { setShowMultiUpload(false); setMultiFiles([]); setMultiResults(null) }} className="text-stone-400 hover:text-stone-600">
+                        <X size={16} />
+                      </button>
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={multiInput}
+                      multiple
+                      onChange={e => {
+                        const selected = Array.from(e.target.files)
+                        setMultiFiles(prev => [...prev, ...selected])
+                        e.target.value = ''
+                      }}
+                      className="hidden"
+                    />
+
+                    {/* File list */}
+                    {multiFiles.length > 0 && (
+                      <div className="mb-3 space-y-1.5">
+                        {multiFiles.map((f, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 text-sm">
+                            <span className="flex-1 truncate text-stone-700">{f.name}</span>
+                            <span className="text-xs text-stone-400">{(f.size / 1024 / 1024).toFixed(1)} MB</span>
+                            {!multiUploading && (
+                              <button onClick={() => setMultiFiles(multiFiles.filter((_, j) => j !== i))} className="text-stone-400 hover:text-red-500">
+                                <X size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Results */}
+                    {multiResults && (
+                      <div className="mb-3 p-3 rounded-lg bg-white border border-stone-200">
+                        <div className="text-sm font-medium mb-2 text-stone-700">
+                          {multiResults.ok_count} caricati, {multiResults.error_count} errori
+                        </div>
+                        {multiResults.files.map((r, i) => (
+                          <div key={i} className="flex items-center gap-2 text-xs py-0.5">
+                            {r.ok ? <CheckCircle size={13} className="text-green-500" /> : <AlertCircle size={13} className="text-red-500" />}
+                            <span className="text-stone-600">{r.file_name}</span>
+                            {r.error && <span className="text-red-500">{r.error}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => multiInput.current.click()}
+                        disabled={multiUploading}
+                        className="px-4 py-2 text-sm border border-violet-300 text-violet-700 rounded-lg hover:bg-violet-100 disabled:opacity-50"
+                      >
+                        + Aggiungi file
+                      </button>
+                      {multiFiles.length > 0 && (
+                        <button
+                          onClick={async () => {
+                            setMultiUploading(true)
+                            setMultiResults(null)
+                            try {
+                              const res = await api.uploadMultiFile(id, multiFiles)
+                              setMultiResults(res)
+                              setMultiFiles([])
+                              // Reload content to get updated thumbnail & drive link
+                              const updated = await api.getContent(id)
+                              setItem(updated)
+                              if (updated.has_thumbnail) {
+                                const url = await api.getThumbnail(id)
+                                if (url) setThumbUrl(url)
+                              }
+                              showToast(`${res.ok_count} file caricati!`)
+                            } catch (err) {
+                              showToast(err.message || 'Upload fallito', 'error')
+                            } finally {
+                              setMultiUploading(false)
+                            }
+                          }}
+                          disabled={multiUploading}
+                          className="px-4 py-2 text-sm font-semibold bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-50 flex items-center gap-2"
+                        >
+                          {multiUploading ? (
+                            <>
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Caricamento...
+                            </>
+                          ) : (
+                            <>
+                              <Upload size={15} /> Carica {multiFiles.length} file
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Actions */}
             {!isMarketing && (

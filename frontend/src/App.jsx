@@ -50,7 +50,7 @@ export default function App() {
     : [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/script-brief', icon: FileText, label: 'Script / Brief' },
-        ...(isAdmin ? [{ to: '/nuovo', icon: PlusCircle, label: 'Crea Contenuto' }] : []),
+        ...(!isMarketing ? [{ to: '/nuovo', icon: PlusCircle, label: 'Crea Contenuto' }] : []),
         { to: '/board', icon: Columns3, label: 'Board Lavori' },
         { to: '/calendario', icon: CalendarDays, label: 'Calendario' },
         { to: '/galleria', icon: Image, label: 'Galleria' },
@@ -113,7 +113,7 @@ export default function App() {
             <Route path="/" element={<Navigate to={isMarketing ? '/calendario' : '/dashboard'} replace />} />
             {!isMarketing && <Route path="/dashboard" element={<Dashboard showToast={showToast} />} />}
             {!isMarketing && <Route path="/script-brief" element={<ScriptBriefPage showToast={showToast} />} />}
-            {isAdmin && <Route path="/nuovo" element={<CreateContent showToast={showToast} />} />}
+            {!isMarketing && <Route path="/nuovo" element={<CreateContent showToast={showToast} />} />}
             {!isMarketing && <Route path="/board" element={<Board showToast={showToast} />} />}
             <Route path="/calendario" element={<CalendarPage />} />
             <Route path="/galleria" element={<Gallery />} />

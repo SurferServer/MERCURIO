@@ -183,6 +183,99 @@ async def upload_file(
     }
 
 
+# ── Multi-upload (multiple files → same Drive folder) ───
+@router.post("/{content_id}/upload-multi")
+async def upload_multi(
+    content_id: int,
+    files: list[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_editor),
+):
+    """Upload multiple files to the same Drive folder for a content item."""
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Contenuto non trovato")
+
+    results = []
+    first_thumb = None
+    first_drive_link = None
+    first_drive_file_id = None
+    first_file_name = None
+
+    for file in files:
+        validate_file(file)
+        file_data = await file.read()
+        if len(file_data) > MAX_FILE_SIZE:
+            results.append({"file_name": file.filename, "error": f"Troppo grande (max {MAX_FILE_SIZE_MB}MB)"})
+            continue
+
+        original_name = sanitize_filename(file.filename)
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        drive_name = f"{timestamp}_{content_id}_{original_name}"
+        mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
+
+        try:
+            result = upload_to_drive(
+                file_data=file_data,
+                file_name=drive_name,
+                mime_type=mime_type,
+                brand=content.brand.value if content.brand else "other",
+                content_type=content.content_type.value if content.content_type else "other",
+                channel=content.channel.value if content.channel else "other",
+                title=content.title,
+            )
+        except Exception as e:
+            logger.error(f"Multi-upload Drive error for {original_name}: {e}")
+            results.append({"file_name": original_name, "error": str(e)})
+            continue
+
+        if not result:
+            results.append({"file_name": original_name, "error": "Drive non configurato"})
+            continue
+
+        drive_file_id, drive_link = result
+        results.append({"file_name": original_name, "drive_link": drive_link, "ok": True})
+
+        # Keep first image as main file for the content record
+        ext = os.path.splitext(original_name)[1].lower()
+        if first_drive_link is None and ext in (".jpg", ".jpeg", ".png", ".webp", ".gif"):
+            first_drive_link = drive_link
+            first_drive_file_id = drive_file_id
+            first_file_name = original_name
+            # Generate thumbnail from first image
+            thumb_path = generate_thumbnail_from_bytes(file_data, original_name, content_id)
+            if thumb_path:
+                first_thumb = thumb_path
+
+        # Fallback: use first file of any type
+        if first_drive_link is None:
+            first_drive_link = drive_link
+            first_drive_file_id = drive_file_id
+            first_file_name = original_name
+
+    # Update content record with the main file info
+    if first_drive_link:
+        content.drive_link = first_drive_link
+        content.drive_file_id = first_drive_file_id
+        content.file_name = first_file_name
+        content.file_path = None
+        if first_thumb:
+            content.thumbnail_path = first_thumb
+        content.updated_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(content)
+
+    ok_count = sum(1 for r in results if r.get("ok"))
+    err_count = len(results) - ok_count
+
+    return {
+        "message": f"{ok_count} file caricati, {err_count} errori",
+        "files": results,
+        "ok_count": ok_count,
+        "error_count": err_count,
+    }
+
+
 # ── Download (proxy from Drive) ─────────────────────────
 @router.get("/{content_id}/download")
 def download_file(
