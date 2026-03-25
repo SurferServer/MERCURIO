@@ -22,7 +22,9 @@ export function Avatar({ name, className = '' }) {
     return <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full bg-stone-200 text-stone-500 text-[10px] font-bold ${className}`}>?</span>
   }
 
-  const photoUrl = `/avatars/${name}.jpg`
+  // Cache-bust with session-based key stored on window
+  const cacheBuster = window.__avatarCacheBuster || ''
+  const photoUrl = `/avatars/${name}.jpg${cacheBuster ? '?v=' + cacheBuster : ''}`
 
   // Try photo first, fallback to initials
   if (!imgError) {

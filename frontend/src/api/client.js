@@ -125,6 +125,26 @@ export const api = {
     return URL.createObjectURL(blob)
   },
 
+  // Avatar
+  uploadAvatar: async (file, token) => {
+    const form = new FormData()
+    form.append('file', file)
+    const headers = {}
+    if (token || _token) {
+      headers['Authorization'] = `Bearer ${token || _token}`
+    }
+    const res = await fetch(`${BASE}/auth/avatar`, {
+      method: 'POST',
+      body: form,
+      headers,
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: 'Upload fallito' }))
+      throw new Error(err.detail || 'Upload avatar fallito')
+    }
+    return res.json()
+  },
+
   // Script / Brief
   listScriptBriefs: (params = {}) => {
     const qs = new URLSearchParams(

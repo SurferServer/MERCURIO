@@ -278,6 +278,15 @@ export default function Dashboard() {
             { name: 'marzia', label: 'Marzia', count: stats.marzia_attivi, color: '#ef4444' },
           ].map(({ name, label, count, color }) => {
             const personItems = inLavorazione.filter(i => i.assigned_to === name)
+            // Urgent: assigned to this person, not completed/archived, with a deadline coming up
+            const personUrgent = allItems
+              .filter(i => {
+                if (i.assigned_to !== name) return false
+                if (i.status === 'completato' || i.status === 'archiviato') return false
+                const d = daysUntil(i.deadline)
+                return d !== null && d <= DEADLINE_WARN_DAYS
+              })
+              .sort((a, b) => daysUntil(a.deadline) - daysUntil(b.deadline))
             return (
               <div key={name} className="px-5 py-4">
                 <div className="flex items-center gap-3 mb-3">
@@ -288,8 +297,56 @@ export default function Dashboard() {
                 <div className="w-full h-2 bg-stone-100 rounded-full overflow-hidden mb-3">
                   <div className="h-full rounded-full transition-all" style={{ width: `${Math.min((count / 10) * 100, 100)}%`, background: color }} />
                 </div>
+
+                {/* Urgent deadlines */}
+                {personUrgent.length > 0 && (
+                  <div className="mb-3">
+                    <div className="text-[10px] uppercase tracking-wider text-red-500 font-bold mb-1.5 flex items-center gap-1">
+                      <CalendarClock size={12} /> Scadenze urgenti
+                    </div>
+                    <div className="space-y-1">
+                      {personUrgent.map(item => {
+                        const days = daysUntil(item.deadline)
+                        const isToday = days === 0
+                        const isOverdue = days < 0
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => navigate(`/contenuto/${item.id}`)}
+                            className={`relative flex items-center gap-2 text-xs cursor-pointer py-1.5 px-2.5 -mx-1 rounded-lg transition-colors overflow-hidden ${
+                              isToday || isOverdue
+                                ? 'text-red-800 hover:text-red-900'
+                                : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+                            }`}
+                          >
+                            {/* Red diagonal stripes for expiring-today / overdue */}
+                            {(isToday || isOverdue) && (
+                              <div
+                                className="absolute inset-0 pointer-events-none rounded-lg"
+                                style={{
+                                  opacity: 0.4,
+                                  backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(220, 38, 38, 0.25) 4px, rgba(220, 38, 38, 0.25) 6px)',
+                                  backgroundColor: 'rgba(254, 226, 226, 0.6)',
+                                }}
+                              />
+                            )}
+                            <span className="relative truncate flex-1 font-medium">{item.title}</span>
+                            <span className={`relative text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${deadlineColor(days)}`}>
+                              {deadlineLabel(days)}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Tasks in progress */}
                 {personItems.length > 0 && (
                   <div className="space-y-1">
+                    {personUrgent.length > 0 && (
+                      <div className="text-[10px] uppercase tracking-wider text-stone-400 font-bold mb-1">In corso</div>
+                    )}
                     {personItems.slice(0, 4).map(item => (
                       <div
                         key={item.id}

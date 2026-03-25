@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText, Images, X, CheckCircle, AlertCircle, FolderOpen } from 'lucide-react'
+import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText, Images, X, CheckCircle, AlertCircle, FolderOpen, ChevronRight } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS, SOURCES, STATUSES } from '../api/constants'
 import { useUser } from '../context/UserContext'
@@ -74,6 +74,24 @@ export default function ContentDetail({ showToast }) {
   const channel = CHANNELS[item.channel] || {}
   const source = SOURCES[item.source] || {}
   const status = STATUSES.find(s => s.value === item.status) || { label: item.status, color: '#8a7260' }
+
+  // Next status logic (admin only)
+  const STATUS_FLOW = STATUSES.map(s => s.value)
+  const currentIdx = STATUS_FLOW.indexOf(item.status)
+  const nextStatus = currentIdx >= 0 && currentIdx < STATUS_FLOW.length - 1
+    ? STATUSES[currentIdx + 1]
+    : null
+
+  const handleAdvanceStatus = async () => {
+    if (!nextStatus) return
+    try {
+      const updated = await api.updateContent(id, { status: nextStatus.value })
+      setItem(updated)
+      setForm(f => ({ ...f, status: nextStatus.value }))
+      showToast(`Stato aggiornato: ${nextStatus.label}`)
+      loadAll()
+    } catch (err) { showToast(err.message, 'error') }
+  }
 
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
 
@@ -180,9 +198,22 @@ export default function ContentDetail({ showToast }) {
                   <h2 className="text-xl font-bold text-stone-800">{item.title}</h2>
                 )}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: status.color }} />
-                <span className="text-sm font-medium text-stone-600">{status.label}</span>
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ background: status.color }} />
+                  <span className="text-sm font-medium text-stone-600">{status.label}</span>
+                </div>
+                {isAdmin && nextStatus && (
+                  <button
+                    onClick={handleAdvanceStatus}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors text-white shadow-sm"
+                    style={{ background: nextStatus.color }}
+                    title={`Avanza a: ${nextStatus.label}`}
+                  >
+                    {nextStatus.label}
+                    <ChevronRight size={14} />
+                  </button>
+                )}
               </div>
             </div>
 

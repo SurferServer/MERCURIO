@@ -35,6 +35,8 @@ export function UserProvider({ children }) {
       setAuthToken(data.token)
       setToken(data.token)
       setUserIdState(id)
+      // Update cache buster so avatar images refresh after login
+      window.__avatarCacheBuster = Date.now().toString()
     } catch (err) {
       setLoginError(err.message)
       throw err

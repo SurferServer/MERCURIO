@@ -17,10 +17,11 @@ import Toast from './components/Toast'
 
 function SidebarAvatar({ userId, user }) {
   const [imgError, setImgError] = React.useState(false)
+  const cacheBuster = window.__avatarCacheBuster || ''
   if (!imgError) {
     return (
       <img
-        src={`/avatars/${userId}.jpg`}
+        src={`/avatars/${userId}.jpg${cacheBuster ? '?v=' + cacheBuster : ''}`}
         alt={user.name}
         onError={() => setImgError(true)}
         className="w-8 h-8 rounded-full object-cover"

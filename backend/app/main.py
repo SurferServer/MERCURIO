@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse
@@ -7,6 +7,8 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from PIL import Image as PILImage
+import io
 
 from .database import engine, Base
 from .routes import contents, files, comments, script_briefs, dev_tasks
@@ -174,6 +176,70 @@ async def get_me(user: CurrentUser = Depends(get_current_user)):
     }
 
 
+# ── Avatar management ─────────────────────────────────────
+AVATAR_DIR = os.path.join(os.getenv("UPLOAD_DIR", "./uploads"), "avatars")
+os.makedirs(AVATAR_DIR, exist_ok=True)
+
+AVATAR_MAX_SIZE = 400  # px – avatar will be resized to this square
+
+
+@app.post("/api/auth/avatar")
+async def upload_avatar(
+    file: UploadFile = File(...),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """Upload or replace the current user's profile photo."""
+    if not file.content_type or not file.content_type.startswith("image/"):
+        return JSONResponse(status_code=400, content={"detail": "Il file deve essere un'immagine"})
+
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:  # 5 MB limit
+        return JSONResponse(status_code=400, content={"detail": "Immagine troppo grande (max 5 MB)"})
+
+    try:
+        img = PILImage.open(io.BytesIO(contents))
+        img = img.convert("RGB")
+        # Crop to square (center crop)
+        w, h = img.size
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        img = img.crop((left, top, left + side, top + side))
+        # Resize
+        img = img.resize((AVATAR_MAX_SIZE, AVATAR_MAX_SIZE), PILImage.LANCZOS)
+        # Save
+        out_path = os.path.join(AVATAR_DIR, f"{user.user_id}.jpg")
+        img.save(out_path, "JPEG", quality=90)
+    except Exception:
+        return JSONResponse(status_code=400, content={"detail": "Impossibile elaborare l'immagine"})
+
+    return {"ok": True, "url": f"/avatars/{user.user_id}.jpg"}
+
+
+@app.delete("/api/auth/avatar")
+async def delete_avatar(user: CurrentUser = Depends(get_current_user)):
+    """Remove the current user's profile photo."""
+    path = os.path.join(AVATAR_DIR, f"{user.user_id}.jpg")
+    if os.path.exists(path):
+        os.remove(path)
+    return {"ok": True}
+
+
+@app.get("/avatars/{filename}")
+async def serve_avatar(filename: str):
+    """Serve avatar images (no auth needed for display)."""
+    # Security: prevent path traversal
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return JSONResponse(status_code=400, content={"detail": "Nome file non valido"})
+    path = os.path.realpath(os.path.join(AVATAR_DIR, filename))
+    if not path.startswith(os.path.realpath(AVATAR_DIR)):
+        return JSONResponse(status_code=403, content={"detail": "Accesso non consentito"})
+    if os.path.isfile(path):
+        return FileResponse(path, media_type="image/jpeg",
+                            headers={"X-Content-Type-Options": "nosniff"})
+    return JSONResponse(status_code=404, content={"detail": "Avatar non trovato"})
+
+
 # API routes
 app.include_router(contents.router)
 app.include_router(files.router)
@@ -208,7 +274,10 @@ if _dist_path:
     # SPA catch-all: any non-API route returns index.html
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        file_path = os.path.join(_dist_path, full_path)
+        file_path = os.path.realpath(os.path.join(_dist_path, full_path))
+        # Security: prevent path traversal outside dist directory
+        if not file_path.startswith(_dist_path):
+            return FileResponse(os.path.join(_dist_path, "index.html"))
         if os.path.isfile(file_path):
             return FileResponse(file_path)
         return FileResponse(os.path.join(_dist_path, "index.html"))
