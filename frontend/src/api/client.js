@@ -132,6 +132,7 @@ export const api = {
   },
   getScriptBrief: (id) => request(`/script-briefs/${id}`),
   createScriptBrief: (data) => request('/script-briefs/', { method: 'POST', body: JSON.stringify(data) }),
+  createScriptBriefBatch: (data) => request('/script-briefs/batch', { method: 'POST', body: JSON.stringify(data) }),
   updateScriptBrief: (id, data) => request(`/script-briefs/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   deleteScriptBrief: (id) => request(`/script-briefs/${id}`, { method: 'DELETE' }),
 

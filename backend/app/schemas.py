@@ -183,6 +183,45 @@ class ScriptBriefCreate(BaseModel):
         return v
 
 
+class ScriptBriefBatchItem(BaseModel):
+    """Single item in a batch creation request."""
+    title: str
+    content: str
+
+    @field_validator('title')
+    @classmethod
+    def title_length(cls, v):
+        v = v.strip()
+        if not v or len(v) > 255:
+            raise ValueError('Il titolo deve avere tra 1 e 255 caratteri')
+        return v
+
+    @field_validator('content')
+    @classmethod
+    def content_length(cls, v):
+        v = v.strip()
+        if not v or len(v) > 50000:
+            raise ValueError('Il contenuto deve avere tra 1 e 50.000 caratteri')
+        return v
+
+
+class ScriptBriefBatchCreate(BaseModel):
+    """Batch creation: shared brand/type/notes, multiple scripts."""
+    brief_type: str
+    brand: str
+    notes: Optional[str] = None
+    items: list[ScriptBriefBatchItem]
+
+    @field_validator('items')
+    @classmethod
+    def at_least_one(cls, v):
+        if not v or len(v) == 0:
+            raise ValueError('Inserisci almeno uno script/brief')
+        if len(v) > 20:
+            raise ValueError('Massimo 20 script/brief per volta')
+        return v
+
+
 class ScriptBriefUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None

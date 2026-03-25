@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import ScriptBrief, Content, Activity, BriefTypeEnum, BrandEnum, AssigneeEnum, StatusEnum
-from ..schemas import ScriptBriefCreate, ScriptBriefUpdate, ScriptBriefResponse
-from ..auth import get_current_user, require_admin, CurrentUser
+from ..schemas import ScriptBriefCreate, ScriptBriefBatchCreate, ScriptBriefUpdate, ScriptBriefResponse
+from ..auth import get_current_user, require_admin, require_any, CurrentUser
 
 router = APIRouter(prefix="/api/script-briefs", tags=["script-briefs"])
 
@@ -57,7 +57,7 @@ def get_script_brief(
 def create_script_brief(
     data: ScriptBriefCreate,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(require_admin),
+    user: CurrentUser = Depends(require_any),
 ):
     if data.brief_type not in VALID_BRIEF_TYPES:
         raise HTTPException(422, f"Tipo non valido: '{data.brief_type}'")
@@ -66,13 +66,16 @@ def create_script_brief(
     if data.assigned_to and data.assigned_to not in VALID_ASSIGNEES:
         raise HTTPException(422, f"Assegnatario non valido: '{data.assigned_to}'")
 
+    # Marketing can create but not assign — force null
+    assigned = data.assigned_to if user.is_admin else None
+
     sb = ScriptBrief(
         title=data.title,
         brief_type=data.brief_type,
         brand=data.brand,
         content=data.content,
         notes=data.notes,
-        assigned_to=data.assigned_to,
+        assigned_to=assigned,
     )
     db.add(sb)
     db.commit()
@@ -107,6 +110,62 @@ def create_script_brief(
     db.commit()
 
     return sb
+
+
+@router.post("/batch", response_model=list[ScriptBriefResponse])
+def create_script_briefs_batch(
+    data: ScriptBriefBatchCreate,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_any),
+):
+    """Create multiple script/briefs at once. Each generates its own Content task."""
+    if data.brief_type not in VALID_BRIEF_TYPES:
+        raise HTTPException(422, f"Tipo non valido: '{data.brief_type}'")
+    if data.brand not in VALID_BRANDS:
+        raise HTTPException(422, f"Brand non valido: '{data.brand}'")
+
+    content_type = "video" if data.brief_type == "script" else "grafica"
+    created = []
+
+    for item in data.items:
+        sb = ScriptBrief(
+            title=item.title,
+            brief_type=data.brief_type,
+            brand=data.brand,
+            content=item.content,
+            notes=data.notes,
+            assigned_to=None,  # batch creation never pre-assigns
+        )
+        db.add(sb)
+        db.flush()  # get sb.id without committing
+
+        content = Content(
+            title=item.title,
+            brand=data.brand,
+            content_type=content_type,
+            channel="organico",
+            source="interno",
+            assigned_to=None,
+            script=item.content,
+            notes=data.notes,
+            script_brief_id=sb.id,
+            status=StatusEnum.DA_ASSEGNARE,
+        )
+        db.add(content)
+        db.flush()
+
+        sb.is_used = True
+        db.add(Activity(
+            content_id=content.id,
+            action=f"Creato automaticamente da {data.brief_type} \"{item.title}\" ({user.name}) [batch]",
+        ))
+        created.append(sb)
+
+    db.commit()
+    for sb in created:
+        db.refresh(sb)
+
+    return created
 
 
 @router.patch("/{sb_id}", response_model=ScriptBriefResponse)

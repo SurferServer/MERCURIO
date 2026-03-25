@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { FileText, Plus, ChevronDown, ChevronUp, Trash2, UserPlus, X } from 'lucide-react'
+import { FileText, Plus, ChevronDown, ChevronUp, Trash2, UserPlus, X, Layers } from 'lucide-react'
 import { api } from '../api/client'
 import { useUser } from '../context/UserContext'
 import { BRANDS } from '../api/constants'
@@ -12,7 +12,7 @@ const BRIEF_TYPES = {
 }
 
 export default function ScriptBriefPage({ showToast }) {
-  const { isAdmin } = useUser()
+  const { isAdmin, isMarketing } = useUser()
   const [items, setItems] = useState([])
   const [filters, setFilters] = useState({ brief_type: '', brand: '', assigned_to: '' })
   const [showCreate, setShowCreate] = useState(false)
@@ -22,6 +22,9 @@ export default function ScriptBriefPage({ showToast }) {
   const [form, setForm] = useState({
     title: '', brief_type: 'script', brand: '', content: '', notes: '', assigned_to: '',
   })
+  const [batchMode, setBatchMode] = useState(false)
+  const [batchItems, setBatchItems] = useState([{ title: '', content: '' }])
+  const [batchSubmitting, setBatchSubmitting] = useState(false)
 
   const load = () => {
     api.listScriptBriefs(filters).then(setItems).catch(() => {})
@@ -40,7 +43,7 @@ export default function ScriptBriefPage({ showToast }) {
     try {
       await api.createScriptBrief({
         ...form,
-        assigned_to: form.assigned_to || null,
+        assigned_to: isMarketing ? null : (form.assigned_to || null),
       })
       showToast('Script/Brief creato!')
       setShowCreate(false)
@@ -67,6 +70,47 @@ export default function ScriptBriefPage({ showToast }) {
     } catch (err) { showToast(err.message, 'error') }
   }
 
+  const handleBatchCreate = async () => {
+    if (!form.brand) {
+      showToast('Seleziona il brand', 'error')
+      return
+    }
+    const validItems = batchItems.filter(i => i.title.trim() && i.content.trim())
+    if (validItems.length === 0) {
+      showToast('Inserisci almeno uno script con titolo e contenuto', 'error')
+      return
+    }
+    setBatchSubmitting(true)
+    try {
+      const result = await api.createScriptBriefBatch({
+        brief_type: form.brief_type,
+        brand: form.brand,
+        notes: form.notes || null,
+        items: validItems,
+      })
+      showToast(`${result.length} script/brief creati — ${result.length} task in assegnazione!`)
+      setShowCreate(false)
+      setBatchMode(false)
+      setBatchItems([{ title: '', content: '' }])
+      setForm({ title: '', brief_type: 'script', brand: '', content: '', notes: '', assigned_to: '' })
+      load()
+    } catch (err) { showToast(err.message, 'error') }
+    finally { setBatchSubmitting(false) }
+  }
+
+  const updateBatchItem = (index, field, value) => {
+    setBatchItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item))
+  }
+
+  const addBatchItem = () => {
+    setBatchItems(prev => [...prev, { title: '', content: '' }])
+  }
+
+  const removeBatchItem = (index) => {
+    if (batchItems.length <= 1) return
+    setBatchItems(prev => prev.filter((_, i) => i !== index))
+  }
+
   const available = items.filter(i => !i.is_used)
   const used = items.filter(i => i.is_used)
 
@@ -77,7 +121,7 @@ export default function ScriptBriefPage({ showToast }) {
           <h2 className="text-2xl font-bold text-stone-800">Script & Brief</h2>
           <p className="text-sm text-stone-500">Gestisci script per i video e brief per le statiche</p>
         </div>
-        {isAdmin && (
+        {(isAdmin || isMarketing) && (
           <button
             onClick={() => setShowCreate(!showCreate)}
             className="flex items-center gap-2 px-5 py-2.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-mercury-800 transition-colors"
@@ -89,14 +133,34 @@ export default function ScriptBriefPage({ showToast }) {
       </div>
 
       {/* Create form */}
-      {showCreate && isAdmin && (
+      {showCreate && (isAdmin || isMarketing) && (
         <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-6 mb-6">
-          <h3 className="text-sm font-semibold text-stone-700 mb-4">Nuovo Script / Brief</h3>
+          {/* Mode toggle */}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-stone-700">
+              {batchMode ? 'Creazione multipla' : 'Nuovo Script / Brief'}
+            </h3>
+            <button
+              onClick={() => setBatchMode(!batchMode)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                batchMode
+                  ? 'bg-accent/10 text-accent border border-accent/30'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200'
+              }`}
+            >
+              {batchMode ? <FileText size={13} /> : <Layers size={13} />}
+              {batchMode ? 'Singolo' : 'Multiplo'}
+            </button>
+          </div>
+
+          {/* Common fields (shared between single and batch) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Titolo *</label>
-              <input value={form.title} onChange={set('title')} placeholder="es. Script Reel Guida e Vai" className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-accent" />
-            </div>
+            {!batchMode && (
+              <div>
+                <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Titolo *</label>
+                <input value={form.title} onChange={set('title')} placeholder="es. Script Reel Guida e Vai" className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-accent" />
+              </div>
+            )}
             <div>
               <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Tipo *</label>
               <select value={form.brief_type} onChange={set('brief_type')} className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm">
@@ -112,28 +176,113 @@ export default function ScriptBriefPage({ showToast }) {
               </select>
             </div>
           </div>
-          <div className="mb-4">
-            <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Contenuto *</label>
-            <textarea value={form.content} onChange={set('content')} rows={6} placeholder="Scrivi lo script o il brief..." className="w-full px-4 py-3 border border-stone-200 rounded-lg text-sm resize-y focus:outline-none focus:border-accent" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
-            <div>
-              <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Note (opzionale)</label>
-              <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Note aggiuntive..." className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm resize-y focus:outline-none focus:border-accent" />
-            </div>
-            <div>
-              <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Assegna a (opzionale)</label>
-              <select value={form.assigned_to} onChange={set('assigned_to')} className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm">
-                <option value="">Non assegnato</option>
-                <option value="fulvio">Fulvio</option>
-                <option value="federico">Federico</option>
-                <option value="marzia">Marzia</option>
-              </select>
-            </div>
-          </div>
-          <button onClick={handleCreate} className="px-6 py-2.5 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-mercury-800 transition-colors">
-            Crea Script/Brief
-          </button>
+
+          {/* Single mode content */}
+          {!batchMode && (
+            <>
+              <div className="mb-4">
+                <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Contenuto *</label>
+                <textarea value={form.content} onChange={set('content')} rows={6} placeholder="Scrivi lo script o il brief..." className="w-full px-4 py-3 border border-stone-200 rounded-lg text-sm resize-y focus:outline-none focus:border-accent" />
+              </div>
+              <div className={`grid grid-cols-1 ${isAdmin ? 'md:grid-cols-2' : ''} gap-4 mb-5`}>
+                <div>
+                  <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Note (opzionale)</label>
+                  <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Note aggiuntive..." className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm resize-y focus:outline-none focus:border-accent" />
+                </div>
+                {isAdmin && (
+                  <div>
+                    <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Assegna a (opzionale)</label>
+                    <select value={form.assigned_to} onChange={set('assigned_to')} className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm">
+                      <option value="">Non assegnato</option>
+                      <option value="fulvio">Fulvio</option>
+                      <option value="federico">Federico</option>
+                      <option value="marzia">Marzia</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+              <button onClick={handleCreate} className="px-6 py-2.5 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-mercury-800 transition-colors">
+                {isMarketing ? 'Crea e manda in Assegnazione' : 'Crea Script/Brief'}
+              </button>
+            </>
+          )}
+
+          {/* Batch mode */}
+          {batchMode && (
+            <>
+              <div className="mb-4">
+                <label className="text-[11px] text-stone-500 uppercase tracking-wide mb-1 block">Note condivise (opzionale)</label>
+                <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Note comuni a tutti gli script..." className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm resize-y focus:outline-none focus:border-accent" />
+              </div>
+
+              <div className="mb-2">
+                <div className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">
+                  Script / Brief ({batchItems.length})
+                </div>
+                <p className="text-xs text-stone-400 mb-3">Ogni elemento genererà un task separato in "Da Assegnare".</p>
+              </div>
+
+              <div className="space-y-3 mb-4">
+                {batchItems.map((item, i) => (
+                  <div key={i} className="border border-stone-200 rounded-xl p-4 bg-stone-50/50 relative">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold text-stone-500">#{i + 1}</span>
+                      {batchItems.length > 1 && (
+                        <button
+                          onClick={() => removeBatchItem(i)}
+                          className="text-stone-400 hover:text-red-500 transition-colors"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <div className="mb-2">
+                      <input
+                        value={item.title}
+                        onChange={e => updateBatchItem(i, 'title', e.target.value)}
+                        placeholder="Titolo *"
+                        className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-accent bg-white"
+                      />
+                    </div>
+                    <textarea
+                      value={item.content}
+                      onChange={e => updateBatchItem(i, 'content', e.target.value)}
+                      rows={4}
+                      placeholder="Contenuto dello script / brief *"
+                      className="w-full px-3 py-2 border border-stone-200 rounded-lg text-sm resize-y focus:outline-none focus:border-accent bg-white"
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={addBatchItem}
+                  className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium border border-dashed border-stone-300 rounded-lg text-stone-600 hover:border-accent hover:text-accent transition-colors"
+                >
+                  <Plus size={14} /> Aggiungi script
+                </button>
+
+                <button
+                  onClick={handleBatchCreate}
+                  disabled={batchSubmitting}
+                  className="flex items-center gap-2 px-6 py-2.5 bg-accent text-white rounded-lg text-sm font-semibold hover:bg-mercury-800 transition-colors disabled:opacity-50 ml-auto"
+                >
+                  {batchSubmitting ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Creazione...
+                    </>
+                  ) : (
+                    <>
+                      <Layers size={15} />
+                      Crea {batchItems.filter(i => i.title.trim() && i.content.trim()).length} task
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -164,7 +313,7 @@ export default function ScriptBriefPage({ showToast }) {
         <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-12 text-center">
           <FileText size={40} className="mx-auto text-stone-300 mb-3" />
           <div className="text-stone-500 text-sm">Nessuno script o brief presente.</div>
-          {isAdmin && <div className="text-stone-400 text-xs mt-1">Clicca "Nuovo" per crearne uno.</div>}
+          {(isAdmin || isMarketing) && <div className="text-stone-400 text-xs mt-1">Clicca "Nuovo" per crearne uno.</div>}
         </div>
       )}
 

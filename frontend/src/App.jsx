@@ -65,6 +65,7 @@ export default function App() {
 
   const navItems = isMarketing
     ? [
+        { to: '/script-brief', icon: FileText, label: 'Script / Brief' },
         { to: '/calendario', icon: CalendarDays, label: 'Calendario' },
         { to: '/galleria', icon: Image, label: 'Galleria' },
         { to: '/archivio', icon: Archive, label: 'Archivio' },
@@ -72,7 +73,7 @@ export default function App() {
     : [
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/script-brief', icon: FileText, label: 'Script / Brief' },
-        ...(!isMarketing ? [{ to: '/nuovo', icon: PlusCircle, label: 'Crea Contenuto' }] : []),
+        { to: '/nuovo', icon: PlusCircle, label: 'Crea Contenuto' },
         { to: '/board', icon: Columns3, label: 'Board Lavori' },
         { to: '/calendario', icon: CalendarDays, label: 'Calendario' },
         { to: '/galleria', icon: Image, label: 'Galleria' },
@@ -129,7 +130,7 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Navigate to={isMarketing ? '/calendario' : '/dashboard'} replace />} />
             {!isMarketing && <Route path="/dashboard" element={<Dashboard showToast={showToast} />} />}
-            {!isMarketing && <Route path="/script-brief" element={<ScriptBriefPage showToast={showToast} />} />}
+            <Route path="/script-brief" element={<ScriptBriefPage showToast={showToast} />} />
             {!isMarketing && <Route path="/nuovo" element={<CreateContent showToast={showToast} />} />}
             {!isMarketing && <Route path="/board" element={<Board showToast={showToast} />} />}
             <Route path="/calendario" element={<CalendarPage />} />
