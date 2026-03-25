@@ -326,13 +326,11 @@ def get_thumbnail(
     user: CurrentUser = Depends(get_current_user),
 ):
     """Serve the thumbnail image for a content item.
-    Regenerates on-demand from Drive if the thumbnail file is missing or was never created."""
+    Regenerates on-demand from Drive if the thumbnail file is missing or was never created.
+    Thumbnails are visible to ALL authenticated users regardless of content status."""
     content = db.query(Content).filter(Content.id == content_id).first()
     if not content:
         raise HTTPException(status_code=404, detail="Contenuto non trovato")
-
-    # Access control
-    _check_content_access(content, user)
 
     # Check if thumbnail exists on disk
     needs_regen = (
