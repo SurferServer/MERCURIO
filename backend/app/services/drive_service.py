@@ -123,10 +123,12 @@ def upload_to_drive(
     content_type: str,
     channel: str,
     title: str = "",
-) -> Optional[Tuple[str, str]]:
+    existing_folder_id: str = None,
+) -> Optional[Tuple[str, str, str]]:
     """
     Upload file bytes to Google Drive.
-    Returns (drive_file_id, webViewLink) or None on failure.
+    Returns (drive_file_id, webViewLink, content_folder_id) or None on failure.
+    If existing_folder_id is provided, uploads directly into that folder.
     """
     service = _get_drive_service()
     if not service or not ROOT_FOLDER_ID:
@@ -141,16 +143,20 @@ def upload_to_drive(
             f"→ {brand}/{content_type}/{channel}/{title}"
         )
 
-        brand_label = BRAND_LABELS.get(brand, brand)
-        type_label = TYPE_LABELS.get(content_type, content_type)
-        channel_label = CHANNEL_LABELS.get(channel, channel)
+        # Use existing folder or create the hierarchy
+        if existing_folder_id:
+            content_folder = existing_folder_id
+        else:
+            brand_label = BRAND_LABELS.get(brand, brand)
+            type_label = TYPE_LABELS.get(content_type, content_type)
+            channel_label = CHANNEL_LABELS.get(channel, channel)
 
-        # Navigate/create folder structure: brand / type / channel / title
-        brand_folder = _find_or_create_folder(service, brand_label, ROOT_FOLDER_ID)
-        type_folder = _find_or_create_folder(service, type_label, brand_folder)
-        channel_folder = _find_or_create_folder(service, channel_label, type_folder)
-        # Sottocartella con il nome del contenuto
-        content_folder = _find_or_create_folder(service, title.strip() or file_name, channel_folder)
+            # Navigate/create folder structure: brand / type / channel / title
+            brand_folder = _find_or_create_folder(service, brand_label, ROOT_FOLDER_ID)
+            type_folder = _find_or_create_folder(service, type_label, brand_folder)
+            channel_folder = _find_or_create_folder(service, channel_label, type_folder)
+            # Sottocartella con il nome del contenuto
+            content_folder = _find_or_create_folder(service, title.strip() or file_name, channel_folder)
 
         # Upload file from memory
         file_metadata = {
@@ -170,8 +176,8 @@ def upload_to_drive(
 
         file_id = uploaded.get("id", "")
         link = uploaded.get("webViewLink", "")
-        logger.info(f"Drive upload OK: {file_name} → id={file_id}, link={link}")
-        return (file_id, link)
+        logger.info(f"Drive upload OK: {file_name} → id={file_id}, link={link}, folder={content_folder}")
+        return (file_id, link, content_folder)
 
     except Exception as e:
         logger.error(f"Drive upload failed for {file_name}: {e}", exc_info=True)

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText, Images, X, CheckCircle, AlertCircle } from 'lucide-react'
+import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText, Images, X, CheckCircle, AlertCircle, FolderOpen } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS, SOURCES, STATUSES } from '../api/constants'
 import { useUser } from '../context/UserContext'
@@ -28,6 +28,7 @@ export default function ContentDetail({ showToast }) {
   const [newComment, setNewComment] = useState('')
   const [thumbUrl, setThumbUrl] = useState(null)
   const [linkedSB, setLinkedSB] = useState(null)
+  const [fileVersions, setFileVersions] = useState(null)
 
   const loadAll = () => {
     api.getContent(id).then(data => {
@@ -58,6 +59,7 @@ export default function ContentDetail({ showToast }) {
     }).catch(() => navigate('/board'))
     api.getActivities(id).then(setActivities).catch(() => {})
     api.getComments(id).then(setComments).catch(() => {})
+    api.getFileVersions(id).then(setFileVersions).catch(() => setFileVersions(null))
   }
 
   useEffect(() => { loadAll() }, [id])
@@ -288,7 +290,59 @@ export default function ContentDetail({ showToast }) {
 
             {/* File & Upload Zone */}
             <div className="mb-6">
-              {item.file_name && (
+              {/* Folder link */}
+              {fileVersions?.drive_folder_link && (
+                <div className="mb-4">
+                  <a
+                    href={fileVersions.drive_folder_link}
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-50/80 border border-blue-200 rounded-lg text-sm text-blue-700 hover:bg-blue-100 transition-colors"
+                  >
+                    <FolderOpen size={16} className="text-blue-600" />
+                    <span className="font-medium">Apri cartella Drive</span>
+                    <ExternalLink size={13} className="text-blue-400" />
+                  </a>
+                </div>
+              )}
+
+              {/* All file versions */}
+              {fileVersions?.files?.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">
+                    File caricati ({fileVersions.files.length})
+                  </div>
+                  <div className="space-y-1.5">
+                    {fileVersions.files.map((f) => (
+                      <div key={f.id} className="flex items-center gap-3 bg-stone-50 rounded-lg px-4 py-2.5">
+                        <div className="w-7 h-7 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
+                          <Upload size={14} className="text-accent" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm text-stone-700 truncate block">{f.file_name}</span>
+                          <span className="text-[11px] text-stone-400">
+                            {f.size_bytes ? `${(f.size_bytes / 1024 / 1024).toFixed(1)} MB` : ''}
+                            {f.uploaded_at ? ` · ${new Date(f.uploaded_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}
+                          </span>
+                        </div>
+                        {f.drive_link && (
+                          <a
+                            href={f.drive_link}
+                            target="_blank"
+                            rel="noopener"
+                            className="flex items-center gap-1 text-xs text-accent hover:underline shrink-0"
+                          >
+                            <ExternalLink size={13} /> Drive
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Legacy: single file fallback when no versions tracked yet */}
+              {item.file_name && (!fileVersions?.files?.length) && (
                 <div className="mb-4">
                   <div className="text-[11px] text-stone-500 uppercase tracking-wide mb-2">File allegato</div>
                   <div className="flex items-center gap-3 bg-stone-50 rounded-lg px-4 py-3">
@@ -366,12 +420,12 @@ export default function ContentDetail({ showToast }) {
               )}
             </div>
 
-            {/* Multi-upload for grafiche */}
-            {item.content_type === 'grafica' && showUploadZone && (
+            {/* Multi-upload for all content types */}
+            {showUploadZone && (
               <div className="mb-6">
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-[11px] text-stone-500 uppercase tracking-wide flex items-center gap-1.5">
-                    <Images size={13} /> Carica formati multipli
+                    <Images size={13} /> Carica più versioni / formati
                   </div>
                   {!showMultiUpload && (
                     <button
@@ -387,7 +441,7 @@ export default function ContentDetail({ showToast }) {
                   <div className="border border-violet-200 bg-violet-50/30 rounded-xl p-5">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-sm text-stone-600">
-                        Carica tutti i formati (JPG, PNG, AI, PSD...) nella stessa cartella Drive del contenuto.
+                        Carica più versioni o formati nella stessa cartella Drive del contenuto.
                       </p>
                       <button onClick={() => { setShowMultiUpload(false); setMultiFiles([]); setMultiResults(null) }} className="text-stone-400 hover:text-stone-600">
                         <X size={16} />
@@ -463,6 +517,8 @@ export default function ContentDetail({ showToast }) {
                                 const url = await api.getThumbnail(id)
                                 if (url) setThumbUrl(url)
                               }
+                              // Reload file versions
+                              api.getFileVersions(id).then(setFileVersions).catch(() => {})
                               showToast(`${res.ok_count} file caricati!`)
                             } catch (err) {
                               showToast(err.message || 'Upload fallito', 'error')

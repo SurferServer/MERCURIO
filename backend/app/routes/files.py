@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Content
+from ..models import Content, ContentFile
 from ..auth import get_current_user, require_editor, require_admin, CurrentUser
 from ..services.thumbnail_service import generate_thumbnail_from_bytes, THUMB_DIR
 from ..services.drive_service import (
@@ -141,6 +141,7 @@ async def upload_file(
             content_type=content.content_type.value if content.content_type else "other",
             channel=content.channel.value if content.channel else "other",
             title=content.title,
+            existing_folder_id=content.drive_folder_id,
         )
     except Exception as e:
         logger.error(f"Drive upload exception for content {content_id}: {e}", exc_info=True)
@@ -155,14 +156,26 @@ async def upload_file(
             detail="Google Drive non configurato. Verifica GOOGLE_SERVICE_ACCOUNT_JSON e GOOGLE_DRIVE_FOLDER_ID."
         )
 
-    drive_file_id, drive_link = result
+    drive_file_id, drive_link, folder_id = result
 
-    # Save metadata
+    # Save metadata on content (latest file stays as "main")
     content.file_name = original_name
     content.file_path = None  # No local storage
     content.drive_file_id = drive_file_id
     content.drive_link = drive_link
+    content.drive_folder_id = folder_id
     content.updated_at = datetime.now(timezone.utc)
+
+    # Track this file version
+    cf = ContentFile(
+        content_id=content_id,
+        file_name=original_name,
+        drive_file_id=drive_file_id,
+        drive_link=drive_link,
+        mime_type=mime_type,
+        size_bytes=len(file_data),
+    )
+    db.add(cf)
 
     # Generate thumbnail from bytes (images/videos)
     thumb_path = generate_thumbnail_from_bytes(file_data, original_name, content_id)
@@ -172,7 +185,7 @@ async def upload_file(
     db.commit()
     db.refresh(content)
 
-    logger.info(f"Upload complete for content {content_id}: drive_id={drive_file_id}")
+    logger.info(f"Upload complete for content {content_id}: drive_id={drive_file_id}, folder={folder_id}")
 
     return {
         "message": "File caricato su Drive",
@@ -180,6 +193,7 @@ async def upload_file(
         "has_thumbnail": bool(thumb_path),
         "drive_link": drive_link,
         "drive_file_id": drive_file_id,
+        "drive_folder_id": folder_id,
     }
 
 
@@ -201,6 +215,7 @@ async def upload_multi(
     first_drive_link = None
     first_drive_file_id = None
     first_file_name = None
+    folder_id = content.drive_folder_id  # Reuse existing folder if available
 
     for file in files:
         validate_file(file)
@@ -223,6 +238,7 @@ async def upload_multi(
                 content_type=content.content_type.value if content.content_type else "other",
                 channel=content.channel.value if content.channel else "other",
                 title=content.title,
+                existing_folder_id=folder_id,
             )
         except Exception as e:
             logger.error(f"Multi-upload Drive error for {original_name}: {e}")
@@ -233,8 +249,20 @@ async def upload_multi(
             results.append({"file_name": original_name, "error": "Drive non configurato"})
             continue
 
-        drive_file_id, drive_link = result
+        drive_file_id, drive_link, returned_folder_id = result
+        folder_id = returned_folder_id  # All subsequent files go into the same folder
         results.append({"file_name": original_name, "drive_link": drive_link, "ok": True})
+
+        # Track this file version
+        cf = ContentFile(
+            content_id=content_id,
+            file_name=original_name,
+            drive_file_id=drive_file_id,
+            drive_link=drive_link,
+            mime_type=mime_type,
+            size_bytes=len(file_data),
+        )
+        db.add(cf)
 
         # Keep first image as main file for the content record
         ext = os.path.splitext(original_name)[1].lower()
@@ -259,6 +287,7 @@ async def upload_multi(
         content.drive_file_id = first_drive_file_id
         content.file_name = first_file_name
         content.file_path = None
+        content.drive_folder_id = folder_id
         if first_thumb:
             content.thumbnail_path = first_thumb
         content.updated_at = datetime.now(timezone.utc)
@@ -273,6 +302,47 @@ async def upload_multi(
         "files": results,
         "ok_count": ok_count,
         "error_count": err_count,
+    }
+
+
+# ── List all file versions for a content ─────────────────
+@router.get("/{content_id}/versions")
+def list_file_versions(
+    content_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+):
+    """List all uploaded file versions for a content item."""
+    content = db.query(Content).filter(Content.id == content_id).first()
+    if not content:
+        raise HTTPException(status_code=404, detail="Contenuto non trovato")
+
+    files = (
+        db.query(ContentFile)
+        .filter(ContentFile.content_id == content_id)
+        .order_by(ContentFile.uploaded_at.desc())
+        .all()
+    )
+
+    folder_link = None
+    if content.drive_folder_id:
+        folder_link = f"https://drive.google.com/drive/folders/{content.drive_folder_id}"
+
+    return {
+        "drive_folder_id": content.drive_folder_id,
+        "drive_folder_link": folder_link,
+        "files": [
+            {
+                "id": f.id,
+                "file_name": f.file_name,
+                "drive_file_id": f.drive_file_id,
+                "drive_link": f.drive_link,
+                "mime_type": f.mime_type,
+                "size_bytes": f.size_bytes,
+                "uploaded_at": f.uploaded_at.isoformat() if f.uploaded_at else None,
+            }
+            for f in files
+        ],
     }
 
 

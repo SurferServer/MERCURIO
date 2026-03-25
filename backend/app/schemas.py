@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class ContentCreate(BaseModel):
@@ -104,11 +104,19 @@ class ContentResponse(BaseModel):
     # file_path removed — never expose internal server paths
     drive_link: Optional[str]
     drive_file_id: Optional[str] = None
+    drive_folder_id: Optional[str] = None
+    drive_folder_link: Optional[str] = None
     script_brief_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     completed_at: Optional[datetime]
     archived_at: Optional[datetime]
+
+    @model_validator(mode="after")
+    def compute_folder_link(self):
+        if self.drive_folder_id and not self.drive_folder_link:
+            self.drive_folder_link = f"https://drive.google.com/drive/folders/{self.drive_folder_id}"
+        return self
 
     class Config:
         from_attributes = True

@@ -97,6 +97,7 @@ export const api = {
     return res.json()
   },
   getDownloadUrl: (contentId) => `${BASE}/files/${contentId}/download`,
+  getFileVersions: (contentId) => request(`/files/${contentId}/versions`),
 
   // Download with auth (returns blob URL)
   downloadFile: async (contentId) => {

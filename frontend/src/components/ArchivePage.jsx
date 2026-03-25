@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Grid3X3, List, ExternalLink, Search } from 'lucide-react'
+import { Download, Grid3X3, List, ExternalLink, Search, FolderOpen } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS, SOURCES } from '../api/constants'
 import Tag from './Tag'
@@ -111,9 +111,18 @@ export default function ArchivePage({ showToast }) {
                     <td className="px-4 py-3 text-sm">{item.assigned_to ? item.assigned_to.charAt(0).toUpperCase() + item.assigned_to.slice(1) : '—'}</td>
                     <td className="px-4 py-3 text-xs text-stone-500">{item.archived_at ? new Date(item.archived_at).toLocaleDateString('it-IT') : item.completed_at ? new Date(item.completed_at).toLocaleDateString('it-IT') : '—'}</td>
                     <td className="px-4 py-3">
-                      {item.drive_link ? (
-                        <a href={item.drive_link} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="text-accent hover:underline"><ExternalLink size={14} /></a>
-                      ) : '—'}
+                      <div className="flex items-center gap-2">
+                        {item.drive_folder_link ? (
+                          <a href={item.drive_folder_link} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="text-blue-600 hover:text-blue-800" title="Apri cartella">
+                            <FolderOpen size={15} />
+                          </a>
+                        ) : null}
+                        {item.drive_link ? (
+                          <a href={item.drive_link} target="_blank" rel="noopener" onClick={e => e.stopPropagation()} className="text-accent hover:underline" title="Apri file">
+                            <ExternalLink size={14} />
+                          </a>
+                        ) : !item.drive_folder_link ? '—' : null}
+                      </div>
                     </td>
                   </tr>
                 )

@@ -84,6 +84,7 @@ class Content(Base):
     thumbnail_path = Column(String(500), nullable=True)
     drive_link = Column(String(500), nullable=True)
     drive_file_id = Column(String(200), nullable=True)
+    drive_folder_id = Column(String(200), nullable=True)
     script_brief_id = Column(Integer, ForeignKey("script_briefs.id"), nullable=True)
 
     @property
@@ -115,6 +116,20 @@ class DevTask(Base):
     status = Column(Enum(DevTaskStatusEnum), nullable=False, default=DevTaskStatusEnum.IN_CORSO)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     completed_at = Column(DateTime, nullable=True)
+
+
+class ContentFile(Base):
+    """Tracks individual file versions uploaded to a content item's Drive folder."""
+    __tablename__ = "content_files"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    content_id = Column(Integer, ForeignKey("contents.id"), nullable=False, index=True)
+    file_name = Column(String(500), nullable=False)
+    drive_file_id = Column(String(200), nullable=False)
+    drive_link = Column(String(500), nullable=True)
+    mime_type = Column(String(100), nullable=True)
+    size_bytes = Column(Integer, nullable=True)
+    uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Comment(Base):

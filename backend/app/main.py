@@ -37,6 +37,10 @@ def _run_migrations():
             migrations.append(
                 "ALTER TABLE contents ADD COLUMN drive_file_id VARCHAR(200)"
             )
+        if "drive_folder_id" not in existing_cols:
+            migrations.append(
+                "ALTER TABLE contents ADD COLUMN drive_folder_id VARCHAR(200)"
+            )
 
     with engine.begin() as conn:
         for sql in migrations:

@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search } from 'lucide-react'
+import { Search, FolderOpen } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS } from '../api/constants'
 import Tag from './Tag'
@@ -92,9 +92,23 @@ export default function Gallery() {
                         <Tag bg={type.bg} text={type.text}>{type.label}</Tag>
                         <Tag bg={channel.bg} text={channel.text}>{channel.label}</Tag>
                       </div>
-                      {item.completed_at && (
-                        <div className="text-[11px] text-stone-400">{new Date(item.completed_at).toLocaleDateString('it-IT')}</div>
-                      )}
+                      <div className="flex items-center justify-between">
+                        {item.completed_at && (
+                          <div className="text-[11px] text-stone-400">{new Date(item.completed_at).toLocaleDateString('it-IT')}</div>
+                        )}
+                        {item.drive_folder_link && (
+                          <a
+                            href={item.drive_folder_link}
+                            target="_blank"
+                            rel="noopener"
+                            onClick={e => e.stopPropagation()}
+                            className="text-blue-500 hover:text-blue-700"
+                            title="Apri cartella Drive"
+                          >
+                            <FolderOpen size={14} />
+                          </a>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
