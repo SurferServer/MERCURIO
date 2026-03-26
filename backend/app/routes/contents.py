@@ -53,7 +53,7 @@ def list_contents(
     year: Optional[int] = None,
     month: Optional[int] = Query(default=None, ge=1, le=12),
     date_field: Optional[str] = Query(default="deadline", pattern="^(deadline|created|completed)$"),
-    limit: int = Query(default=200, le=500),
+    limit: int = Query(default=200, le=5000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),

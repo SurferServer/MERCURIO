@@ -44,40 +44,31 @@ export default function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState(null)
   const [viewMode, setViewMode] = useState('deadline')
 
+  // Paginate through all items (handles any backend limit)
+  const loadAll = async (params) => {
+    const pageSize = 500
+    let all = []
+    let offset = 0
+    while (true) {
+      const page = await api.listContents({ ...params, limit: pageSize, offset })
+      all = all.concat(page)
+      if (page.length < pageSize) break
+      offset += pageSize
+    }
+    return all
+  }
+
   useEffect(() => {
-    // Try server-side month filter first; fall back to bulk load if backend doesn't support it yet
-    api.listContents({
-      year,
-      month: month + 1, // JS months are 0-based, API expects 1-based
-      date_field: viewMode,
+    // Load ALL content (active + archived), paginated, then filter client-side by month
+    Promise.all([
+      loadAll({}),
+      loadAll({ archived: true }),
+    ]).then(([active, archived]) => {
+      const map = new Map()
+      ;[...active, ...archived].forEach(i => map.set(i.id, i))
+      setItems([...map.values()])
     })
-      .then(data => {
-        if (data && data.length > 0) {
-          setItems(data)
-        } else {
-          // Fallback: load bulk (active + archived) for backward compat
-          return Promise.all([
-            api.listContents({ limit: 500 }),
-            api.listContents({ archived: true, limit: 500 }),
-          ]).then(([active, archived]) => {
-            const map = new Map()
-            ;[...active, ...archived].forEach(i => map.set(i.id, i))
-            setItems([...map.values()])
-          })
-        }
-      })
-      .catch(() => {
-        // Backend doesn't support month params — use old bulk approach
-        Promise.all([
-          api.listContents({ limit: 500 }),
-          api.listContents({ archived: true, limit: 500 }),
-        ]).then(([active, archived]) => {
-          const map = new Map()
-          ;[...active, ...archived].forEach(i => map.set(i.id, i))
-          setItems([...map.values()])
-        })
-      })
-  }, [year, month, viewMode])
+  }, [])
 
   const days = useMemo(() => getMonthDays(year, month), [year, month])
 
