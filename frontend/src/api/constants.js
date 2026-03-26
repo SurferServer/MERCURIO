@@ -13,6 +13,7 @@ export const TYPES = {
 export const CHANNELS = {
   organico: { label: 'Organico', bg: 'bg-emerald-100', text: 'text-emerald-800' },
   adv: { label: 'ADV', bg: 'bg-orange-100', text: 'text-orange-800' },
+  cartaceo: { label: 'Cartaceo', bg: 'bg-sky-100', text: 'text-sky-800' },
 }
 
 export const SOURCES = {
@@ -28,6 +29,10 @@ export const STATUSES = [
 ]
 
 export const ASSIGNEES = {
+  fulvio: { label: 'Fulvio', initials: 'FU', color: 'bg-indigo-500' },
   federico: { label: 'Federico', initials: 'FE', color: 'bg-orange-500' },
   marzia: { label: 'Marzia', initials: 'MA', color: 'bg-red-500' },
+  'federico+marzia': { label: 'Federico + Marzia', initials: 'FM', color: 'bg-purple-500' },
+  'fulvio+federico': { label: 'Fulvio + Federico', initials: 'FF', color: 'bg-blue-500' },
+  'fulvio+marzia': { label: 'Fulvio + Marzia', initials: 'VM', color: 'bg-teal-500' },
 }

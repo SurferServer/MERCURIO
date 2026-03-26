@@ -19,6 +19,7 @@ class ContentTypeEnum(str, enum.Enum):
 class ChannelEnum(str, enum.Enum):
     ORGANICO = "organico"
     ADV = "adv"
+    CARTACEO = "cartaceo"
 
 
 class SourceEnum(str, enum.Enum):
@@ -38,6 +39,9 @@ class AssigneeEnum(str, enum.Enum):
     FULVIO = "fulvio"
     FEDERICO = "federico"
     MARZIA = "marzia"
+    FEDERICO_MARZIA = "federico+marzia"
+    FULVIO_FEDERICO = "fulvio+federico"
+    FULVIO_MARZIA = "fulvio+marzia"
 
 
 class BriefTypeEnum(str, enum.Enum):

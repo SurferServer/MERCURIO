@@ -331,14 +331,12 @@ def update_content(
     if not content:
         raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
-    # Collaborators can only change status (limited) and their own assignment fields
+    # Collaborators can change status (limited), reassign, and edit some fields
     if user.is_collaborator:
         allowed_status_transitions = {
             "in-lavorazione": ["in-revisione"],
             "in-revisione": ["in-lavorazione"],
         }
-        if data.assigned_to is not None:
-            raise HTTPException(status_code=403, detail="Solo l'admin può riassegnare")
         if data.status:
             current = content.status.value if content.status else None
             allowed = allowed_status_transitions.get(current, [])
@@ -347,9 +345,9 @@ def update_content(
                     status_code=403,
                     detail=f"Non puoi spostare da '{current}' a '{data.status}'"
                 )
-        # Collaborators can edit script, notes, deadline of their assigned content
+        # Collaborators can edit script, notes, deadline, drive_link, and assigned_to
         if not user.is_admin:
-            non_status_fields = {k: v for k, v in data.model_dump(exclude_unset=True).items() if k not in ('status', 'script', 'notes', 'deadline', 'drive_link')}
+            non_status_fields = {k: v for k, v in data.model_dump(exclude_unset=True).items() if k not in ('status', 'script', 'notes', 'deadline', 'drive_link', 'assigned_to')}
             if non_status_fields:
                 raise HTTPException(status_code=403, detail="Non hai i permessi per modificare questi campi")
 
@@ -416,6 +414,12 @@ def update_content(
     new_assignee = data.assigned_to if data.assigned_to is not None else None
     if new_assignee and new_assignee != old_assignee:
         db.add(Activity(content_id=content.id, action=f"Assegnato a {new_assignee.capitalize()} ({user.name})"))
+        # Auto-note on reassignment
+        reassign_note = f"[{datetime.now(timezone.utc).strftime('%d/%m/%Y %H:%M')}] Riassegnato da {user.name}: {old_assignee or 'nessuno'} → {new_assignee}"
+        if content.notes:
+            content.notes = content.notes.rstrip() + "\n" + reassign_note
+        else:
+            content.notes = reassign_note
 
     db.commit()
     db.refresh(content)

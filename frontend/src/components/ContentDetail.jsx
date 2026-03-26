@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Upload, Download, Save, Trash2, ExternalLink, Send, Clock, FileText, Images, X, CheckCircle, AlertCircle, FolderOpen, ChevronRight } from 'lucide-react'
 import { api } from '../api/client'
-import { BRANDS, TYPES, CHANNELS, SOURCES, STATUSES } from '../api/constants'
+import { BRANDS, TYPES, CHANNELS, SOURCES, STATUSES, ASSIGNEES } from '../api/constants'
 import { useUser } from '../context/UserContext'
 import Tag from './Tag'
 import { Avatar } from './Tag'
@@ -165,7 +165,7 @@ export default function ContentDetail({ showToast }) {
   }
 
   const isCollaborator = !isAdmin && !isMarketing
-  const isAssignedToMe = item?.assigned_to === userId
+  const isAssignedToMe = item?.assigned_to === userId || (item?.assigned_to?.includes('+') && item?.assigned_to?.includes(userId))
   const showUploadZone = !isMarketing && (
     !item?.file_name ||
     (isCollaborator && isAssignedToMe) ||
@@ -232,17 +232,17 @@ export default function ContentDetail({ showToast }) {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div>
                 <div className="text-[11px] text-stone-500 uppercase tracking-wide mb-1">Assegnato a</div>
-                {editing && isAdmin ? (
+                {editing && (isAdmin || isCollaborator) ? (
                   <select value={form.assigned_to} onChange={set('assigned_to')} className="w-full px-2 py-1 border border-stone-200 rounded text-sm">
                     <option value="">Non assegnato</option>
-                    <option value="fulvio">Fulvio</option>
-                    <option value="federico">Federico</option>
-                    <option value="marzia">Marzia</option>
+                    {Object.entries(ASSIGNEES).map(([k, v]) => (
+                      <option key={k} value={k}>{v.label}</option>
+                    ))}
                   </select>
                 ) : (
                   <div className="flex items-center gap-2">
                     <Avatar name={item.assigned_to} />
-                    <span className="text-sm">{item.assigned_to ? item.assigned_to.charAt(0).toUpperCase() + item.assigned_to.slice(1) : 'Non assegnato'}</span>
+                    <span className="text-sm">{ASSIGNEES[item.assigned_to]?.label || (item.assigned_to ? item.assigned_to.charAt(0).toUpperCase() + item.assigned_to.slice(1) : 'Non assegnato')}</span>
                   </div>
                 )}
               </div>

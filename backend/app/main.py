@@ -93,6 +93,37 @@ def _run_migrations():
     except Exception as e:
         logger.info(f"Assignee enum migration skipped (probably SQLite): {e}")
 
+    # Add 'CARTACEO' to channelenum if missing
+    try:
+        raw_conn = engine.raw_connection()
+        try:
+            raw_conn.set_isolation_level(0)  # AUTOCOMMIT
+            cursor = raw_conn.cursor()
+            cursor.execute("ALTER TYPE channelenum ADD VALUE IF NOT EXISTS 'CARTACEO'")
+            cursor.close()
+            raw_conn.commit()
+            logger.info("Added 'CARTACEO' to channelenum")
+        finally:
+            raw_conn.close()
+    except Exception as e:
+        logger.info(f"Channel enum migration skipped (probably SQLite): {e}")
+
+    # Add pair assignees to assigneeenum if missing
+    for pair_value in ('FEDERICO_MARZIA', 'FULVIO_FEDERICO', 'FULVIO_MARZIA'):
+        try:
+            raw_conn = engine.raw_connection()
+            try:
+                raw_conn.set_isolation_level(0)  # AUTOCOMMIT
+                cursor = raw_conn.cursor()
+                cursor.execute(f"ALTER TYPE assigneeenum ADD VALUE IF NOT EXISTS '{pair_value}'")
+                cursor.close()
+                raw_conn.commit()
+                logger.info(f"Added '{pair_value}' to assigneeenum")
+            finally:
+                raw_conn.close()
+        except Exception as e:
+            logger.info(f"Assignee pair enum migration skipped for {pair_value}: {e}")
+
 try:
     _run_migrations()
 except Exception as e:

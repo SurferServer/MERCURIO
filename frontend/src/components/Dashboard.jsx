@@ -19,6 +19,22 @@ function daysUntil(dateStr) {
   return Math.ceil((d - now) / 86400000)
 }
 
+/**
+ * Returns true if the deadline is "critical" — past days, or today after 14:00.
+ * Used to show the red diagonal stripes only from 14:00 on the deadline day.
+ */
+function isDeadlineCritical(dateStr) {
+  if (!dateStr) return false
+  const d = new Date(dateStr)
+  d.setHours(0, 0, 0, 0)
+  const now = new Date()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  if (d.getTime() < today.getTime()) return true
+  if (d.getTime() === today.getTime() && now.getHours() >= 14) return true
+  return false
+}
+
 function deadlineLabel(days) {
   if (days < 0) return `Scaduto da ${Math.abs(days)}g`
   if (days === 0) return 'Scade oggi'
@@ -277,11 +293,12 @@ export default function Dashboard() {
             { name: 'federico', label: 'Federico', count: stats.federico_attivi, color: '#ff9800' },
             { name: 'marzia', label: 'Marzia', count: stats.marzia_attivi, color: '#ef4444' },
           ].map(({ name, label, count, color }) => {
-            const personItems = inLavorazione.filter(i => i.assigned_to === name)
+            const isAssigned = (item) => item.assigned_to === name || (item.assigned_to?.includes('+') && item.assigned_to?.includes(name))
+            const personItems = inLavorazione.filter(isAssigned)
             // Urgent: assigned to this person, not completed/archived, with a deadline coming up
             const personUrgent = allItems
               .filter(i => {
-                if (i.assigned_to !== name) return false
+                if (!isAssigned(i)) return false
                 if (i.status === 'completato' || i.status === 'archiviato') return false
                 const d = daysUntil(i.deadline)
                 return d !== null && d <= DEADLINE_WARN_DAYS
@@ -307,20 +324,19 @@ export default function Dashboard() {
                     <div className="space-y-1">
                       {personUrgent.map(item => {
                         const days = daysUntil(item.deadline)
-                        const isToday = days === 0
-                        const isOverdue = days < 0
+                        const critical = isDeadlineCritical(item.deadline)
                         return (
                           <div
                             key={item.id}
                             onClick={() => navigate(`/contenuto/${item.id}`)}
                             className={`relative flex items-center gap-2 text-xs cursor-pointer py-1.5 px-2.5 -mx-1 rounded-lg transition-colors overflow-hidden ${
-                              isToday || isOverdue
+                              critical
                                 ? 'text-red-800 hover:text-red-900'
                                 : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
                             }`}
                           >
-                            {/* Red diagonal stripes for expiring-today / overdue */}
-                            {(isToday || isOverdue) && (
+                            {/* Red diagonal stripes — only after 14:00 on deadline day or past */}
+                            {critical && (
                               <div
                                 className="absolute inset-0 pointer-events-none rounded-lg"
                                 style={{

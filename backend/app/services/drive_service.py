@@ -38,6 +38,7 @@ TYPE_LABELS = {
 CHANNEL_LABELS = {
     "organico": "Organico",
     "adv": "ADV",
+    "cartaceo": "Cartaceo",
 }
 
 ROOT_FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "").strip()
@@ -155,8 +156,9 @@ def upload_to_drive(
             brand_folder = _find_or_create_folder(service, brand_label, ROOT_FOLDER_ID)
             type_folder = _find_or_create_folder(service, type_label, brand_folder)
             channel_folder = _find_or_create_folder(service, channel_label, type_folder)
-            # Sottocartella con il nome del contenuto
-            content_folder = _find_or_create_folder(service, title.strip() or file_name, channel_folder)
+            # Sottocartella: use original filename (without extension) as folder name
+            folder_name = os.path.splitext(file_name)[0].strip() or title.strip() or file_name
+            content_folder = _find_or_create_folder(service, folder_name, channel_folder)
 
         # Upload file from memory
         file_metadata = {

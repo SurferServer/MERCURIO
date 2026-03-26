@@ -124,18 +124,16 @@ async def upload_file(
         )
 
     original_name = sanitize_filename(file.filename)
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    drive_name = f"{timestamp}_{content_id}_{original_name}"
 
     # Detect MIME type
     mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
 
-    # Upload to Google Drive (PRIMARY storage)
+    # Upload to Google Drive (PRIMARY storage) — use original filename
     logger.info(f"Uploading to Drive for content {content_id}: {original_name} ({len(file_data)} bytes)")
     try:
         result = upload_to_drive(
             file_data=file_data,
-            file_name=drive_name,
+            file_name=original_name,
             mime_type=mime_type,
             brand=content.brand.value if content.brand else "other",
             content_type=content.content_type.value if content.content_type else "other",
@@ -225,14 +223,12 @@ async def upload_multi(
             continue
 
         original_name = sanitize_filename(file.filename)
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        drive_name = f"{timestamp}_{content_id}_{original_name}"
         mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
 
         try:
             result = upload_to_drive(
                 file_data=file_data,
-                file_name=drive_name,
+                file_name=original_name,
                 mime_type=mime_type,
                 brand=content.brand.value if content.brand else "other",
                 content_type=content.content_type.value if content.content_type else "other",

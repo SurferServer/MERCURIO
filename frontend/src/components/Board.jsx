@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Clock, AlertTriangle } from 'lucide-react'
+import { Clock, AlertTriangle, RotateCcw, ChevronDown, ChevronUp } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS, SOURCES, STATUSES, ASSIGNEES } from '../api/constants'
 import { useUser } from '../context/UserContext'
@@ -10,6 +10,8 @@ import SmartThumb from './SmartThumb'
 
 export default function Board({ showToast }) {
   const [items, setItems] = useState([])
+  const [archivedItems, setArchivedItems] = useState([])
+  const [showArchive, setShowArchive] = useState(false)
   const [brandFilter, setBrandFilter] = useState('')
   const [assignFilter, setAssignFilter] = useState('')
   const navigate = useNavigate()
@@ -20,6 +22,8 @@ export default function Board({ showToast }) {
     if (brandFilter) params.brand = brandFilter
     if (assignFilter) params.assigned_to = assignFilter
     api.listContents(params).then(setItems)
+    // Load archived items
+    api.listContents({ ...params, archived: true, status: 'archiviato', limit: 50 }).then(setArchivedItems)
   }, [brandFilter, assignFilter])
 
   useEffect(() => { load() }, [load])
@@ -53,6 +57,14 @@ export default function Board({ showToast }) {
     try {
       await api.deleteContent(id)
       showToast('Eliminato')
+      load()
+    } catch (err) { showToast(err.message, 'error') }
+  }
+
+  const rifacimento = async (id) => {
+    try {
+      await api.updateContent(id, { status: 'in-lavorazione' })
+      showToast('Rimandato in lavorazione')
       load()
     } catch (err) { showToast(err.message, 'error') }
   }
@@ -94,16 +106,27 @@ export default function Board({ showToast }) {
                 const source = SOURCES[item.source] || {}
                 const overdue = isOverdue(item)
 
-                const assigneeBg = item.assigned_to === 'federico'
-                  ? 'bg-orange-50/80'
-                  : item.assigned_to === 'marzia'
-                    ? 'bg-rose-50/80'
-                    : 'bg-white/90'
-                const assigneeBorder = item.assigned_to === 'federico'
-                  ? 'border-l-[3px] border-l-orange-400'
-                  : item.assigned_to === 'marzia'
-                    ? 'border-l-[3px] border-l-rose-400'
-                    : ''
+                const hasFederico = item.assigned_to?.includes('federico')
+                const hasMarzia = item.assigned_to?.includes('marzia')
+                const hasFulvio = item.assigned_to === 'fulvio' || item.assigned_to?.startsWith('fulvio+')
+                const assigneeBg = hasFederico && hasMarzia
+                  ? 'bg-purple-50/80'
+                  : hasFederico
+                    ? 'bg-orange-50/80'
+                    : hasMarzia
+                      ? 'bg-rose-50/80'
+                      : hasFulvio
+                        ? 'bg-indigo-50/80'
+                        : 'bg-white/90'
+                const assigneeBorder = hasFederico && hasMarzia
+                  ? 'border-l-[3px] border-l-purple-400'
+                  : hasFederico
+                    ? 'border-l-[3px] border-l-orange-400'
+                    : hasMarzia
+                      ? 'border-l-[3px] border-l-rose-400'
+                      : hasFulvio
+                        ? 'border-l-[3px] border-l-indigo-400'
+                        : ''
 
                 return (
                   <div key={item.id} className={`${assigneeBg} backdrop-blur rounded-lg mb-2.5 border transition-shadow hover:shadow-md overflow-hidden flex ${assigneeBorder} ${overdue ? 'border-red-300' : 'border-stone-200'}`}>
@@ -129,8 +152,12 @@ export default function Board({ showToast }) {
                       <div className="flex flex-wrap gap-1 pt-2 border-t border-stone-100">
                         {status.value === 'da-assegnare' && isAdmin && (
                           <>
+                            <ActionBtn onClick={() => assign(item.id, 'fulvio')}>Fulvio</ActionBtn>
                             <ActionBtn onClick={() => assign(item.id, 'federico')}>Federico</ActionBtn>
                             <ActionBtn onClick={() => assign(item.id, 'marzia')}>Marzia</ActionBtn>
+                            <ActionBtn onClick={() => assign(item.id, 'federico+marzia')}>Fed+Mar</ActionBtn>
+                            <ActionBtn onClick={() => assign(item.id, 'fulvio+federico')}>Ful+Fed</ActionBtn>
+                            <ActionBtn onClick={() => assign(item.id, 'fulvio+marzia')}>Ful+Mar</ActionBtn>
                           </>
                         )}
                         {status.value === 'in-lavorazione' && (
@@ -155,6 +182,59 @@ export default function Board({ showToast }) {
           )
         })}
       </div>
+
+      {/* Archive section */}
+      {isAdmin && (
+        <div className="mt-8">
+          <button
+            onClick={() => setShowArchive(v => !v)}
+            className="flex items-center gap-2 text-sm font-semibold text-stone-500 hover:text-stone-700 transition-colors mb-3"
+          >
+            {showArchive ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            Archivio ({archivedItems.length})
+          </button>
+          {showArchive && (
+            <div className="bg-stone-100/60 backdrop-blur rounded-xl border border-stone-200 p-4">
+              {archivedItems.length === 0 ? (
+                <div className="text-center text-stone-400 text-xs py-8">Nessun elemento archiviato</div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                  {archivedItems.map(item => {
+                    const brand = BRANDS[item.brand] || {}
+                    const channel = CHANNELS[item.channel] || {}
+                    return (
+                      <div key={item.id} className="bg-white/90 backdrop-blur rounded-lg border border-stone-200 overflow-hidden flex">
+                        <SmartThumb item={item} size="md" />
+                        <div className="p-3 flex-1 min-w-0">
+                          <div className="flex items-start justify-between mb-1">
+                            <Tag bg={brand.bg} text={brand.text}>{brand.label}</Tag>
+                            <Avatar name={item.assigned_to} />
+                          </div>
+                          <div className="text-sm font-semibold mb-2 cursor-pointer hover:text-accent truncate" onClick={() => navigate(`/contenuto/${item.id}`)}>
+                            {item.title}
+                          </div>
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            <Tag bg={channel.bg} text={channel.text}>{channel.label}</Tag>
+                          </div>
+                          <div className="flex gap-1 pt-2 border-t border-stone-100">
+                            <button
+                              onClick={() => rifacimento(item.id)}
+                              className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded border border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-500 hover:text-white hover:border-amber-500 transition-colors font-semibold"
+                            >
+                              <RotateCcw size={11} /> Rifacimento
+                            </button>
+                            <ActionBtn onClick={() => remove(item.id)} danger>Elimina</ActionBtn>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
