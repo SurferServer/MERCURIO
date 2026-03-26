@@ -75,7 +75,7 @@ export default function App() {
         { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
         { to: '/script-brief', icon: FileText, label: 'Script / Brief' },
         { to: '/nuovo', icon: PlusCircle, label: 'Crea Contenuto' },
-        { to: '/board', icon: Columns3, label: 'Board Lavori' },
+        { to: '/board', icon: Columns3, label: 'Board Lavori', highlight: true },
         { to: '/calendario', icon: CalendarDays, label: 'Calendario' },
         { to: '/galleria', icon: Image, label: 'Galleria' },
         { to: '/archivio', icon: Archive, label: 'Archivio' },
@@ -92,19 +92,25 @@ export default function App() {
             <span className="text-[10px] text-white/40 uppercase tracking-widest">Gestione Contenuti</span>
           </div>
           <div className="flex-1 py-2 relative z-10">
-            {navItems.map(({ to, icon: Icon, label }) => (
+            {navItems.map(({ to, icon: Icon, label, highlight }) => (
               <NavLink
                 key={to}
                 to={to}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-6 py-3 text-sm transition-colors border-l-[3px] ${
-                    isActive
-                      ? 'bg-mercury-500/15 text-mercury-400 border-mercury-500'
-                      : 'text-white/50 border-transparent hover:bg-white/5 hover:text-white/80'
-                  }`
+                  highlight
+                    ? `flex items-center gap-3 mx-3 my-1 px-4 py-3.5 text-[15px] font-bold rounded-xl transition-all border-l-0 ${
+                        isActive
+                          ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
+                          : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/40 hover:text-amber-200'
+                      }`
+                    : `flex items-center gap-3 px-6 py-3 text-sm transition-colors border-l-[3px] ${
+                        isActive
+                          ? 'bg-mercury-500/15 text-mercury-400 border-mercury-500'
+                          : 'text-white/50 border-transparent hover:bg-white/5 hover:text-white/80'
+                      }`
                 }
               >
-                <Icon size={18} />
+                <Icon size={highlight ? 22 : 18} />
                 {label}
               </NavLink>
             ))}

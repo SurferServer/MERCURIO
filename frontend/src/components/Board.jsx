@@ -88,11 +88,18 @@ export default function Board({ showToast }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-        {STATUSES.map(status => {
+        {STATUSES.map((status, colIndex) => {
           const colItems = items.filter(i => i.status === status.value)
+          // Warm palette: from cooler (left) to warmer (right)
+          const colBgs = [
+            'bg-amber-50/30 border-amber-200/60',   // Da Assegnare — ambra chiaro
+            'bg-orange-50/30 border-orange-200/60',  // In Lavorazione — arancio
+            'bg-rose-50/30 border-rose-200/60',      // In Revisione — rosa
+            'bg-emerald-50/30 border-emerald-200/60', // Completato — verde
+          ]
           return (
-            <div key={status.value} className="bg-white/40 backdrop-blur rounded-xl p-4 min-h-[300px] border border-stone-200">
-              <div className="flex items-center gap-2 mb-4">
+            <div key={status.value} className={`backdrop-blur rounded-xl p-3 min-h-[300px] border ${colBgs[colIndex]}`}>
+              <div className="flex items-center gap-2 mb-3">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ background: status.color }} />
                 <span className="text-xs font-semibold uppercase tracking-wide text-stone-600">{status.label}</span>
                 <span className="text-[10px] font-bold bg-stone-200 text-stone-600 rounded-full px-2 py-0.5">{colItems.length}</span>
@@ -129,27 +136,25 @@ export default function Board({ showToast }) {
                         : ''
 
                 return (
-                  <div key={item.id} className={`${assigneeBg} backdrop-blur rounded-lg mb-2.5 border transition-shadow hover:shadow-md overflow-hidden flex ${assigneeBorder} ${overdue ? 'border-red-300' : 'border-stone-200'}`}>
-                    <SmartThumb item={item} size="md" />
-                    <div className="p-3 flex-1 min-w-0">
-                      <div className="flex items-start justify-between mb-1">
-                        <Tag bg={brand.bg} text={brand.text}>{brand.label}</Tag>
+                  <div key={item.id} className={`${assigneeBg} backdrop-blur rounded-lg mb-1.5 border transition-shadow hover:shadow-md overflow-hidden ${assigneeBorder} ${overdue ? 'border-red-300' : 'border-stone-200'}`}>
+                    <div className="px-2.5 py-2 min-w-0">
+                      <div className="flex items-center justify-between mb-0.5">
+                        <div className="flex items-center gap-1">
+                          <Tag bg={brand.bg} text={brand.text}>{brand.label}</Tag>
+                          <Tag bg={channel.bg} text={channel.text}>{channel.label}</Tag>
+                        </div>
                         <Avatar name={item.assigned_to} />
                       </div>
-                      <div className="text-sm font-semibold mb-2 cursor-pointer hover:text-accent truncate" onClick={() => navigate(`/contenuto/${item.id}`)}>
+                      <div className="text-[13px] font-semibold mb-1 cursor-pointer hover:text-accent truncate leading-tight" onClick={() => navigate(`/contenuto/${item.id}`)}>
                         {item.title}
                       </div>
-                      <div className="flex flex-wrap gap-1 mb-2">
-                        <Tag bg={channel.bg} text={channel.text}>{channel.label}</Tag>
-                        <Tag bg={source.bg} text={source.text}>{source.label}</Tag>
-                      </div>
                       {item.deadline && (
-                        <div className={`flex items-center gap-1 text-[11px] mb-2 ${overdue ? 'text-red-600 font-semibold' : 'text-stone-400'}`}>
-                          {overdue ? <AlertTriangle size={12} /> : <Clock size={12} />}
+                        <div className={`flex items-center gap-1 text-[10px] mb-1 ${overdue ? 'text-red-600 font-semibold' : 'text-stone-400'}`}>
+                          {overdue ? <AlertTriangle size={10} /> : <Clock size={10} />}
                           {new Date(item.deadline).toLocaleDateString('it-IT')}
                         </div>
                       )}
-                      <div className="flex flex-wrap gap-1 pt-2 border-t border-stone-100">
+                      <div className="flex flex-wrap gap-1 pt-1 border-t border-stone-100">
                         {status.value === 'da-assegnare' && isAdmin && (
                           <>
                             <ActionBtn onClick={() => assign(item.id, 'fulvio')}>Fulvio</ActionBtn>
