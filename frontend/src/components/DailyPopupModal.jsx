@@ -23,7 +23,7 @@ export default function DailyPopupModal() {
           setVisible(true)
         }
       })
-      .catch(() => {})
+      .catch(e => console.warn('Daily popup load failed:', e))
   }, [])
 
   const handleClose = () => {

@@ -61,12 +61,17 @@ export default function ContentDetail({ showToast }) {
         setLinkedSB(null)
       }
     }).catch(() => navigate('/board'))
-    api.getActivities(id).then(setActivities).catch(() => {})
-    api.getComments(id).then(setComments).catch(() => {})
-    api.getFileVersions(id).then(setFileVersions).catch(() => setFileVersions(null))
+    api.getActivities(id).then(setActivities).catch(e => console.warn('Activities load failed:', e))
+    api.getComments(id).then(setComments).catch(e => console.warn('Comments load failed:', e))
+    api.getFileVersions(id).then(setFileVersions).catch(e => { console.warn('File versions load failed:', e); setFileVersions(null) })
   }
 
   useEffect(() => { loadAll() }, [id])
+
+  // Cleanup blob URL on unmount or when thumbnail changes
+  useEffect(() => {
+    return () => { if (thumbUrl) URL.revokeObjectURL(thumbUrl) }
+  }, [thumbUrl])
 
   if (!item) return <div className="text-stone-400 py-20 text-center">Caricamento...</div>
 
@@ -203,7 +208,7 @@ export default function ContentDetail({ showToast }) {
                       value={form.brand}
                       onChange={set('brand')}
                       className="px-2 py-1 border border-stone-200 rounded text-xs font-medium"
-                      style={{ background: (BRANDS[form.brand]?.bg || '').replace('bg-', '') }}
+                      style={{ backgroundColor: BRANDS[form.brand]?.color ? `${BRANDS[form.brand].color}30` : '#f5f5f4' }}
                     >
                       {Object.entries(BRANDS).map(([k, v]) => (
                         <option key={k} value={k}>{v.label}</option>

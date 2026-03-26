@@ -15,7 +15,7 @@ export default function PopupAdmin({ showToast }) {
 
   useEffect(() => {
     if (targetUser) {
-      api.listPopupsForUser(targetUser).then(setHistory).catch(() => {})
+      api.listPopupsForUser(targetUser).then(setHistory).catch(e => console.warn('Popup history load failed:', e))
     }
   }, [targetUser])
 
@@ -122,8 +122,9 @@ export default function PopupAdmin({ showToast }) {
         {history.map(popup => {
           const isExpanded = expandedId === popup.id
           const isRead = !!popup.read_at
-          const tasksToday = popup.tasks_today_json ? JSON.parse(popup.tasks_today_json) : []
-          const tasksWeek = popup.tasks_week_json ? JSON.parse(popup.tasks_week_json) : []
+          let tasksToday = [], tasksWeek = []
+          try { tasksToday = popup.tasks_today_json ? JSON.parse(popup.tasks_today_json) : [] } catch { /* malformed */ }
+          try { tasksWeek = popup.tasks_week_json ? JSON.parse(popup.tasks_week_json) : [] } catch { /* malformed */ }
 
           return (
             <div key={popup.id} className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
