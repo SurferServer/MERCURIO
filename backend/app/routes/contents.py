@@ -336,6 +336,7 @@ def update_content(
         allowed_status_transitions = {
             "in-lavorazione": ["in-revisione"],
             "in-revisione": ["in-lavorazione"],
+            "archiviato": ["in-lavorazione"],
         }
         if data.status:
             current = content.status.value if content.status else None

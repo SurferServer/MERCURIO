@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { FileText, Plus, ChevronDown, ChevronUp, Trash2, UserPlus, X, Layers } from 'lucide-react'
+import { FileText, Plus, ChevronDown, ChevronUp, Trash2, UserPlus, X, Layers, ArrowUpDown, Calendar } from 'lucide-react'
 import { api } from '../api/client'
 import { useUser } from '../context/UserContext'
-import { BRANDS } from '../api/constants'
+import { BRANDS, STATUSES } from '../api/constants'
 import Tag from './Tag'
 import { Avatar } from './Tag'
 
@@ -15,6 +15,7 @@ export default function ScriptBriefPage({ showToast }) {
   const { isAdmin, isMarketing } = useUser()
   const [items, setItems] = useState([])
   const [filters, setFilters] = useState({ brief_type: '', brand: '', assigned_to: '' })
+  const [sortOrder, setSortOrder] = useState('date_desc')
   const [showCreate, setShowCreate] = useState(false)
   const [expandedId, setExpandedId] = useState(null)
   const [editingAssign, setEditingAssign] = useState(null)
@@ -27,10 +28,12 @@ export default function ScriptBriefPage({ showToast }) {
   const [batchSubmitting, setBatchSubmitting] = useState(false)
 
   const load = () => {
-    api.listScriptBriefs(filters).then(setItems).catch(() => {})
+    const params = { ...filters, hide_archived: true }
+    if (sortOrder === 'date_asc') params.sort = 'date_asc'
+    api.listScriptBriefs(params).then(setItems).catch(() => {})
   }
 
-  useEffect(() => { load() }, [filters])
+  useEffect(() => { load() }, [filters, sortOrder])
 
   const setFilter = (key) => (e) => setFilters({ ...filters, [key]: e.target.value })
   const set = (field) => (e) => setForm({ ...form, [field]: e.target.value })
@@ -110,9 +113,6 @@ export default function ScriptBriefPage({ showToast }) {
     if (batchItems.length <= 1) return
     setBatchItems(prev => prev.filter((_, i) => i !== index))
   }
-
-  const available = items.filter(i => !i.is_used)
-  const used = items.filter(i => i.is_used)
 
   return (
     <div className="max-w-5xl">
@@ -303,68 +303,61 @@ export default function ScriptBriefPage({ showToast }) {
           <option value="federico">Federico</option>
           <option value="marzia">Marzia</option>
         </select>
+        <button
+          onClick={() => setSortOrder(s => s === 'date_desc' ? 'date_asc' : 'date_desc')}
+          className="flex items-center gap-1.5 px-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80 hover:bg-stone-50 transition-colors text-stone-600"
+          title={sortOrder === 'date_desc' ? 'Più recenti prima' : 'Più vecchi prima'}
+        >
+          <ArrowUpDown size={14} />
+          {sortOrder === 'date_desc' ? 'Recenti' : 'Vecchi'}
+        </button>
         <div className="ml-auto text-xs text-stone-400">
-          {available.length} disponibil{available.length === 1 ? 'e' : 'i'} · {used.length} utilizzat{used.length === 1 ? 'o' : 'i'}
+          {items.length} attiv{items.length === 1 ? 'o' : 'i'}
         </div>
       </div>
 
-      {/* Available list */}
-      {available.length === 0 && used.length === 0 && (
+      {/* Script/Brief list — only active tasks (not completed/archived) */}
+      {items.length === 0 && (
         <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-12 text-center">
           <FileText size={40} className="mx-auto text-stone-300 mb-3" />
-          <div className="text-stone-500 text-sm">Nessuno script o brief presente.</div>
+          <div className="text-stone-500 text-sm">Nessuno script o brief attivo.</div>
           {(isAdmin || isMarketing) && <div className="text-stone-400 text-xs mt-1">Clicca "Nuovo" per crearne uno.</div>}
+          <div className="text-stone-400 text-xs mt-1">Gli script completati o archiviati non vengono mostrati.</div>
         </div>
       )}
 
-      {available.length > 0 && (
-        <div className="mb-8">
-          <h3 className="text-xs font-bold uppercase tracking-wide text-stone-500 mb-3">Disponibili ({available.length})</h3>
-          <div className="space-y-2">
-            {available.map(item => (
-              <ScriptBriefCard
-                key={item.id}
-                item={item}
-                isAdmin={isAdmin}
-                expanded={expandedId === item.id}
-                onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                editingAssign={editingAssign === item.id}
-                onEditAssign={() => setEditingAssign(editingAssign === item.id ? null : item.id)}
-                onAssign={(assignee) => handleAssign(item.id, assignee)}
-                onDelete={() => handleDelete(item.id)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {used.length > 0 && (
-        <div>
-          <h3 className="text-xs font-bold uppercase tracking-wide text-stone-400 mb-3">Già utilizzati ({used.length})</h3>
-          <div className="space-y-2 opacity-60">
-            {used.map(item => (
-              <ScriptBriefCard
-                key={item.id}
-                item={item}
-                isAdmin={isAdmin}
-                expanded={expandedId === item.id}
-                onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
-                editingAssign={false}
-                onEditAssign={() => {}}
-                onAssign={() => {}}
-                onDelete={() => handleDelete(item.id)}
-              />
-            ))}
-          </div>
+      {items.length > 0 && (
+        <div className="space-y-2">
+          {items.map(item => (
+            <ScriptBriefCard
+              key={item.id}
+              item={item}
+              isAdmin={isAdmin}
+              expanded={expandedId === item.id}
+              onToggle={() => setExpandedId(expandedId === item.id ? null : item.id)}
+              editingAssign={editingAssign === item.id}
+              onEditAssign={() => setEditingAssign(editingAssign === item.id ? null : item.id)}
+              onAssign={(assignee) => handleAssign(item.id, assignee)}
+              onDelete={() => handleDelete(item.id)}
+            />
+          ))}
         </div>
       )}
     </div>
   )
 }
 
+const TASK_STATUS_STYLES = {
+  'da-assegnare': { label: 'Da Assegnare', bg: 'bg-orange-100', text: 'text-orange-700' },
+  'in-lavorazione': { label: 'In Lavorazione', bg: 'bg-amber-100', text: 'text-amber-700' },
+  'in-revisione': { label: 'In Revisione', bg: 'bg-pink-100', text: 'text-pink-700' },
+  'completato': { label: 'Completato', bg: 'bg-green-100', text: 'text-green-700' },
+}
+
 function ScriptBriefCard({ item, isAdmin, expanded, onToggle, editingAssign, onEditAssign, onAssign, onDelete }) {
   const brand = BRANDS[item.brand] || {}
   const typeInfo = BRIEF_TYPES[item.brief_type] || {}
+  const taskStatus = item.task_status ? TASK_STATUS_STYLES[item.task_status] : null
 
   return (
     <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
@@ -372,8 +365,15 @@ function ScriptBriefCard({ item, isAdmin, expanded, onToggle, editingAssign, onE
         <FileText size={18} className="text-stone-400 shrink-0" />
         <div className="flex-1 min-w-0">
           <div className="text-sm font-semibold text-stone-700 truncate">{item.title}</div>
+          <div className="flex items-center gap-2 mt-0.5">
+            <span className="text-[10px] text-stone-400 flex items-center gap-1">
+              <Calendar size={10} />
+              {new Date(item.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
+            </span>
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {taskStatus && <Tag bg={taskStatus.bg} text={taskStatus.text}>{taskStatus.label}</Tag>}
           <Tag bg={typeInfo.bg} text={typeInfo.text}>{typeInfo.label}</Tag>
           <Tag bg={brand.bg} text={brand.text}>{brand.label}</Tag>
           {item.assigned_to && <Avatar name={item.assigned_to} />}

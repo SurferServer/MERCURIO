@@ -15,7 +15,7 @@ export default function Board({ showToast }) {
   const [brandFilter, setBrandFilter] = useState('')
   const [assignFilter, setAssignFilter] = useState('')
   const navigate = useNavigate()
-  const { isAdmin } = useUser()
+  const { isAdmin, isMarketing } = useUser()
 
   const load = useCallback(() => {
     const params = {}
@@ -184,7 +184,7 @@ export default function Board({ showToast }) {
       </div>
 
       {/* Archive section */}
-      {isAdmin && (
+      {!isMarketing && (
         <div className="mt-8">
           <button
             onClick={() => setShowArchive(v => !v)}
@@ -223,7 +223,7 @@ export default function Board({ showToast }) {
                             >
                               <RotateCcw size={11} /> Rifacimento
                             </button>
-                            <ActionBtn onClick={() => remove(item.id)} danger>Elimina</ActionBtn>
+                            {isAdmin && <ActionBtn onClick={() => remove(item.id)} danger>Elimina</ActionBtn>}
                           </div>
                         </div>
                       </div>

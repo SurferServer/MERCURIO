@@ -20,6 +20,8 @@ def list_script_briefs(
     brand: Optional[str] = None,
     assigned_to: Optional[str] = None,
     available: Optional[bool] = None,
+    hide_archived: bool = True,
+    sort: Optional[str] = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
@@ -38,7 +40,45 @@ def list_script_briefs(
         q = q.filter(ScriptBrief.assigned_to == assigned_to)
     if available is True:
         q = q.filter(ScriptBrief.is_used == False)
-    return q.order_by(ScriptBrief.created_at.desc()).all()
+
+    # Filter out scripts whose linked task is archived or completed
+    if hide_archived:
+        from sqlalchemy import and_, or_, not_, exists
+        archived_statuses = [StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO]
+        # Keep scripts that either have no linked content, or whose linked content is NOT archived/completed
+        has_archived_task = exists().where(
+            and_(
+                Content.script_brief_id == ScriptBrief.id,
+                Content.status.in_(archived_statuses)
+            )
+        )
+        q = q.filter(~has_archived_task)
+
+    # Sorting
+    if sort == "date_asc":
+        q = q.order_by(ScriptBrief.created_at.asc())
+    else:
+        q = q.order_by(ScriptBrief.created_at.desc())
+
+    script_briefs = q.all()
+
+    # Attach task_status from linked Content
+    sb_ids = [sb.id for sb in script_briefs]
+    if sb_ids:
+        linked_contents = db.query(Content.script_brief_id, Content.status).filter(
+            Content.script_brief_id.in_(sb_ids)
+        ).all()
+        status_map = {c.script_brief_id: c.status.value if c.status else None for c in linked_contents}
+    else:
+        status_map = {}
+
+    results = []
+    for sb in script_briefs:
+        resp = ScriptBriefResponse.model_validate(sb)
+        resp.task_status = status_map.get(sb.id)
+        results.append(resp)
+
+    return results
 
 
 @router.get("/{sb_id}", response_model=ScriptBriefResponse)

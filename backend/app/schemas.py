@@ -241,6 +241,7 @@ class ScriptBriefResponse(BaseModel):
     is_used: bool
     created_at: datetime
     updated_at: datetime
+    task_status: Optional[str] = None
 
     class Config:
         from_attributes = True
