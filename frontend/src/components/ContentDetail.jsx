@@ -35,6 +35,7 @@ export default function ContentDetail({ showToast }) {
       setItem(data)
       setForm({
         title: data.title,
+        brand: data.brand || '',
         script: data.script || '',
         notes: data.notes || '',
         assigned_to: data.assigned_to || '',
@@ -108,6 +109,10 @@ export default function ContentDetail({ showToast }) {
       // Only send status if it actually changed — avoids 403 for collaborators
       if (form.status !== item.status) {
         payload.status = form.status
+      }
+      // Only send brand if admin changed it
+      if (isAdmin && form.brand && form.brand !== item.brand) {
+        payload.brand = form.brand
       }
       const updated = await api.updateContent(id, payload)
       setItem(updated)
@@ -192,8 +197,21 @@ export default function ContentDetail({ showToast }) {
             <div className="flex items-start gap-4 mb-6 pb-5 border-b border-stone-100">
               <SmartThumb item={item} size="sm" />
               <div className="flex-1">
-                <div className="flex gap-2 mb-2 flex-wrap">
-                  <Tag bg={brand.bg} text={brand.text}>{brand.label}</Tag>
+                <div className="flex gap-2 mb-2 flex-wrap items-center">
+                  {editing && isAdmin ? (
+                    <select
+                      value={form.brand}
+                      onChange={set('brand')}
+                      className="px-2 py-1 border border-stone-200 rounded text-xs font-medium"
+                      style={{ background: (BRANDS[form.brand]?.bg || '').replace('bg-', '') }}
+                    >
+                      {Object.entries(BRANDS).map(([k, v]) => (
+                        <option key={k} value={k}>{v.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <Tag bg={brand.bg} text={brand.text}>{brand.label}</Tag>
+                  )}
                   <Tag bg={type.bg} text={type.text}>{type.label}</Tag>
                   <Tag bg={channel.bg} text={channel.text}>{channel.label}</Tag>
                   <Tag bg={source.bg} text={source.text}>{source.label}</Tag>
