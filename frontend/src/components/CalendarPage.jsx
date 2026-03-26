@@ -165,7 +165,7 @@ export default function CalendarPage() {
         <div className={`text-xs px-3 py-2 rounded-lg mb-2 ${importResult.error ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
           {importResult.error
             ? `Errore: ${importResult.error}`
-            : `Importati ${importResult.created} contenuti (${importResult.skipped} già presenti o saltati)`}
+            : `${importResult.created} nuovi, ${importResult.updated || 0} aggiornati, ${importResult.skipped} saltati`}
           <button onClick={() => setImportResult(null)} className="ml-2 underline">chiudi</button>
         </div>
       )}

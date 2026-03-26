@@ -375,6 +375,50 @@ def create_content(
     return content
 
 
+MONTH_MAP_IT = {
+    "gennaio": 1, "febbraio": 2, "marzo": 3, "aprile": 4,
+    "maggio": 5, "giugno": 6, "luglio": 7, "agosto": 8,
+    "settembre": 9, "ottobre": 10, "novembre": 11, "dicembre": 12,
+}
+
+
+def _parse_date_from_folder(cartella: str, percorso: str) -> "datetime | None":
+    """Try to extract a real date from folder name or path structure.
+
+    Priority:
+    1. Folder name starts with DD_MM_YY (e.g. '25_3_25_ADV_SALVO' → 2025-03-25)
+    2. Path contains /YYYY/MONTH_IT/ + folder starts with 'N DOW -' (e.g. /2024/NOVEMBRE/5 MAR -)
+    3. None (caller falls back to Data caricamento)
+    """
+    import re
+
+    # 1. Folder name date prefix: DD_MM_YY or DD_MM_YYYY
+    m = re.match(r'^(\d{1,2})_(\d{1,2})_(\d{2,4})', cartella)
+    if m:
+        day, month, year = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        if year < 100:
+            year += 2000
+        try:
+            return datetime(year, month, day)
+        except ValueError:
+            pass
+
+    # 2. Path: .../YYYY/MONTH_IT/... + optional day from folder "5 MAR - ..."
+    m2 = re.search(r'/(\d{4})/(GENNAIO|FEBBRAIO|MARZO|APRILE|MAGGIO|GIUGNO|LUGLIO|AGOSTO|SETTEMBRE|OTTOBRE|NOVEMBRE|DICEMBRE)/', percorso, re.I)
+    if m2:
+        year = int(m2.group(1))
+        month = MONTH_MAP_IT.get(m2.group(2).lower(), 1)
+        # Try to get day from folder name: "5 MAR - title" or "12 GIO - title"
+        dm = re.match(r'^(\d{1,2})\s', cartella)
+        day = int(dm.group(1)) if dm else 1
+        try:
+            return datetime(year, month, day)
+        except ValueError:
+            return datetime(year, month, 1)
+
+    return None
+
+
 @router.post("/import-csv")
 async def import_csv(
     file: UploadFile = File(...),
@@ -382,6 +426,7 @@ async def import_csv(
     user: CurrentUser = Depends(require_admin),
 ):
     """Import archived content from CSV files (admin only).
+    Re-import safe: updates dates on existing records (matched by drive_link).
     Supports two CSV formats:
     - Video CSV: Cartella, Nome Video, Link, Data caricamento, Percorso cartella, Link cartella
     - Statiche CSV: Cartella, File, Link, Data creazione
@@ -398,6 +443,7 @@ async def import_csv(
         raise HTTPException(400, "CSV non riconosciuto. Serve colonna 'Data caricamento' o 'Data creazione'.")
 
     created = 0
+    updated = 0
     skipped = 0
 
     for row in reader:
@@ -407,25 +453,26 @@ async def import_csv(
             skipped += 1
             continue
 
-        # Skip if already imported (check by drive_link)
-        exists = db.query(Content.id).filter(Content.drive_link == drive_link).first()
-        if exists:
-            skipped += 1
-            continue
-
-        # Title: use Cartella name
         title = (row.get("Cartella") or row.get("Nome Video") or "Senza titolo").strip()
         file_name = (row.get("Nome Video") or row.get("File") or "").strip()
 
-        # Parse date
+        # ── Date resolution ──
         date_val = None
+
         if is_video_csv:
-            raw_date = (row.get("Data caricamento") or "").strip()
-            if raw_date:
-                try:
-                    date_val = datetime.strptime(raw_date, "%Y-%m-%d %H:%M:%S")
-                except ValueError:
-                    pass
+            # 1st priority: parse from folder name / path structure
+            cartella = (row.get("Cartella") or "").strip()
+            percorso = row.get("Percorso cartella") or ""
+            date_val = _parse_date_from_folder(cartella, percorso)
+
+            # 2nd priority: Data caricamento (Drive upload timestamp)
+            if date_val is None:
+                raw_date = (row.get("Data caricamento") or "").strip()
+                if raw_date:
+                    try:
+                        date_val = datetime.strptime(raw_date, "%Y-%m-%d %H:%M:%S")
+                    except ValueError:
+                        pass
         else:
             raw_date = (row.get("Data creazione") or "").strip()
             if raw_date:
@@ -434,18 +481,16 @@ async def import_csv(
                 except ValueError:
                     pass
 
-        # Determine content_type from file extension
+        # ── Content type ──
         ext = os.path.splitext(file_name)[1].lower() if file_name else ""
         if ext in (".mp4", ".mov", ".avi", ".mkv", ".webm"):
             content_type = ContentTypeEnum.VIDEO
         else:
             content_type = ContentTypeEnum.GRAFICA
 
-        # Determine brand and channel from folder path
+        # ── Brand + channel from path ──
         folder_path = (row.get("Percorso cartella") or "").lower()
-        folder_link = (row.get("Link cartella") or "").strip()
 
-        # Brand detection
         if "quiz patente" in folder_path or "quiz_patente" in title.lower():
             brand = BrandEnum.QUIZ_PATENTE
         elif "rinnovala" in folder_path or "rinnovala" in title.lower():
@@ -453,37 +498,46 @@ async def import_csv(
         elif "guida e vai" in folder_path or "guida_e_vai" in title.lower() or "guida sicura" in folder_path:
             brand = BrandEnum.GUIDA_E_VAI
         else:
-            brand = BrandEnum.QUIZ_PATENTE  # default
+            brand = BrandEnum.QUIZ_PATENTE
 
-        # Channel detection
-        if "/adv/" in folder_path or "_adv_" in title.lower():
+        if "/adv/" in folder_path or "_adv_" in title.lower() or "adv" in title.lower().split("_")[:2]:
             channel = ChannelEnum.ADV
         else:
             channel = ChannelEnum.ORGANICO
 
-        content = Content(
-            title=title,
-            brand=brand,
-            content_type=content_type,
-            channel=channel,
-            source=SourceEnum.INTERNO,
-            status=StatusEnum.ARCHIVIATO,
-            file_name=file_name or None,
-            drive_link=drive_link,
-            deadline=date_val,
-            created_at=date_val or datetime.now(timezone.utc),
-            completed_at=date_val,
-            notes=f"Importato da CSV: {file.filename}",
-        )
-        db.add(content)
-        created += 1
+        # ── Check existing record ──
+        existing = db.query(Content).filter(Content.drive_link == drive_link).first()
 
-        # Batch commit every 200 rows
-        if created % 200 == 0:
+        if existing:
+            # Re-import: update dates only
+            if date_val:
+                existing.deadline = date_val
+                existing.created_at = date_val
+                existing.completed_at = date_val
+            updated += 1
+        else:
+            content = Content(
+                title=title,
+                brand=brand,
+                content_type=content_type,
+                channel=channel,
+                source=SourceEnum.INTERNO,
+                status=StatusEnum.ARCHIVIATO,
+                file_name=file_name or None,
+                drive_link=drive_link,
+                deadline=date_val,
+                created_at=date_val or datetime.now(timezone.utc),
+                completed_at=date_val,
+                notes=f"Importato da CSV: {file.filename}",
+            )
+            db.add(content)
+            created += 1
+
+        if (created + updated) % 200 == 0:
             db.commit()
 
     db.commit()
-    return {"created": created, "skipped": skipped, "total_rows": created + skipped}
+    return {"created": created, "updated": updated, "skipped": skipped, "total_rows": created + updated + skipped}
 
 
 @router.patch("/{content_id}", response_model=ContentResponse)
