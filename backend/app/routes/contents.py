@@ -49,6 +49,10 @@ def list_contents(
     assigned_to: Optional[str] = None,
     search: Optional[str] = None,
     archived: bool = False,
+    # Calendar month filter — returns ALL items matching the given month (ignores limit)
+    year: Optional[int] = None,
+    month: Optional[int] = Query(default=None, ge=1, le=12),
+    date_field: Optional[str] = Query(default="deadline", pattern="^(deadline|created|completed)$"),
     limit: int = Query(default=200, le=500),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -64,13 +68,17 @@ def list_contents(
 
     q = db.query(Content)
 
+    # Calendar month queries bypass status filters — show everything in that month
+    is_calendar = year is not None and month is not None
+
     # Marketing users can only see completed/archived content
-    if user.is_marketing:
+    if user.is_marketing and not is_calendar:
         q = q.filter(Content.status.in_([StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO]))
-    elif archived:
-        q = q.filter(Content.status.in_([StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO]))
-    else:
-        q = q.filter(Content.status != StatusEnum.ARCHIVIATO)
+    elif not is_calendar:
+        if archived:
+            q = q.filter(Content.status.in_([StatusEnum.COMPLETATO, StatusEnum.ARCHIVIATO]))
+        else:
+            q = q.filter(Content.status != StatusEnum.ARCHIVIATO)
 
     if status:
         q = q.filter(Content.status == status)
@@ -89,6 +97,51 @@ def list_contents(
         q = q.filter(
             (Content.title.ilike(term)) | (Content.notes.ilike(term))
         )
+
+    # Month filter for calendar view — returns all matching items (no limit)
+    if year is not None and month is not None:
+        from sqlalchemy import extract, or_, and_
+        # Pick which date column(s) to filter on
+        if date_field == "completed":
+            # Match on completed_at OR created_at (fallback)
+            q = q.filter(
+                or_(
+                    and_(
+                        Content.completed_at.isnot(None),
+                        extract('year', Content.completed_at) == year,
+                        extract('month', Content.completed_at) == month,
+                    ),
+                    and_(
+                        Content.completed_at.is_(None),
+                        extract('year', Content.created_at) == year,
+                        extract('month', Content.created_at) == month,
+                    ),
+                )
+            )
+        elif date_field == "deadline":
+            # Match on deadline OR created_at (fallback)
+            q = q.filter(
+                or_(
+                    and_(
+                        Content.deadline.isnot(None),
+                        extract('year', Content.deadline) == year,
+                        extract('month', Content.deadline) == month,
+                    ),
+                    and_(
+                        Content.deadline.is_(None),
+                        extract('year', Content.created_at) == year,
+                        extract('month', Content.created_at) == month,
+                    ),
+                )
+            )
+        else:  # created
+            q = q.filter(
+                extract('year', Content.created_at) == year,
+                extract('month', Content.created_at) == month,
+            )
+        # No limit for month queries — return everything in that month
+        return q.order_by(Content.created_at.desc()).all()
+
     return q.order_by(Content.created_at.desc()).offset(offset).limit(limit).all()
 
 

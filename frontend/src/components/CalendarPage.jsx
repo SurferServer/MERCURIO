@@ -2,8 +2,9 @@ import React, { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 import { api } from '../api/client'
-import { BRANDS, TYPES } from '../api/constants'
+import { BRANDS, TYPES, STATUSES } from '../api/constants'
 import Tag from './Tag'
+import { Avatar } from './Tag'
 import SmartThumb from './SmartThumb'
 
 const MONTHS_IT = [
@@ -28,6 +29,12 @@ function getMonthDays(year, month) {
   return days
 }
 
+const VIEW_MODES = [
+  { value: 'deadline', label: 'Per scadenza' },
+  { value: 'created', label: 'Per data creazione' },
+  { value: 'completed', label: 'Per completamento' },
+]
+
 export default function CalendarPage() {
   const navigate = useNavigate()
   const now = new Date()
@@ -35,26 +42,33 @@ export default function CalendarPage() {
   const [month, setMonth] = useState(now.getMonth())
   const [items, setItems] = useState([])
   const [selectedDay, setSelectedDay] = useState(null)
+  const [viewMode, setViewMode] = useState('deadline')
 
   useEffect(() => {
-    // Load active + archived content
-    Promise.all([
-      api.listContents(),
-      api.listContents({ archived: true }),
-    ]).then(([active, archived]) => {
-      setItems([...active, ...archived])
-    })
-  }, [])
+    // Load only items for the displayed month (server-side filter, no limit)
+    api.listContents({
+      year,
+      month: month + 1, // JS months are 0-based, API expects 1-based
+      date_field: viewMode,
+    }).then(setItems)
+  }, [year, month, viewMode])
 
   const days = useMemo(() => getMonthDays(year, month), [year, month])
 
-  // Group completed/archived items by completed_at day within the selected month
+  // Get the reference date for an item based on the view mode
+  const getItemDate = (item) => {
+    if (viewMode === 'deadline') return item.deadline || item.created_at
+    if (viewMode === 'completed') return item.completed_at || item.created_at
+    return item.created_at
+  }
+
+  // Group items by day within the selected month
   const itemsByDay = useMemo(() => {
     const map = {}
     items.forEach(item => {
-      if (!item.completed_at) return
-      if (!['completato', 'archiviato'].includes(item.status)) return
-      const d = new Date(item.completed_at)
+      const dateStr = getItemDate(item)
+      if (!dateStr) return
+      const d = new Date(dateStr)
       if (d.getFullYear() === year && d.getMonth() === month) {
         const day = d.getDate()
         if (!map[day]) map[day] = []
@@ -62,7 +76,7 @@ export default function CalendarPage() {
       }
     })
     return map
-  }, [items, year, month])
+  }, [items, year, month, viewMode])
 
   const prevMonth = () => {
     if (month === 0) { setMonth(11); setYear(year - 1) }
@@ -79,10 +93,10 @@ export default function CalendarPage() {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-1 text-stone-800">Calendario</h2>
-      <p className="text-sm text-stone-500 mb-6">Contenuti completati nel mese</p>
+      <p className="text-sm text-stone-500 mb-6">Tutti i contenuti nel mese</p>
 
-      {/* Month navigation */}
-      <div className="flex items-center gap-4 mb-5">
+      {/* Month navigation + view mode */}
+      <div className="flex items-center gap-4 mb-5 flex-wrap">
         <button onClick={prevMonth} className="p-2 rounded-lg hover:bg-stone-100 transition-colors">
           <ChevronLeft size={20} />
         </button>
@@ -95,6 +109,21 @@ export default function CalendarPage() {
         <button onClick={goToday} className="text-xs px-3 py-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 text-stone-600 font-medium">
           Oggi
         </button>
+        <div className="ml-auto flex items-center gap-1 bg-stone-100 rounded-lg p-0.5">
+          {VIEW_MODES.map(mode => (
+            <button
+              key={mode.value}
+              onClick={() => setViewMode(mode.value)}
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                viewMode === mode.value
+                  ? 'bg-white text-stone-800 shadow-sm'
+                  : 'text-stone-500 hover:text-stone-700'
+              }`}
+            >
+              {mode.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Calendar grid */}
@@ -239,19 +268,19 @@ export default function CalendarPage() {
       {Object.keys(itemsByDay).length > 0 && (
         <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
           {Object.entries(BRANDS).map(([key, brand]) => {
-            const brandCount = items.filter(i =>
-              i.brand === key &&
-              i.completed_at &&
-              ['completato', 'archiviato'].includes(i.status) &&
-              new Date(i.completed_at).getFullYear() === year &&
-              new Date(i.completed_at).getMonth() === month
-            ).length
+            const brandCount = items.filter(i => {
+              if (i.brand !== key) return false
+              const dateStr = getItemDate(i)
+              if (!dateStr) return false
+              const d = new Date(dateStr)
+              return d.getFullYear() === year && d.getMonth() === month
+            }).length
             if (brandCount === 0) return null
             return (
               <div key={key} className="bg-white/90 backdrop-blur rounded-xl p-4 border border-stone-200 border-l-4" style={{ borderLeftColor: brand.color }}>
                 <div className="text-xs uppercase tracking-wide font-bold mb-1" style={{ color: brand.color }}>{brand.label}</div>
                 <div className="text-2xl font-bold text-stone-800">{brandCount}</div>
-                <div className="text-xs text-stone-400">contenuti completati</div>
+                <div className="text-xs text-stone-400">contenuti nel mese</div>
               </div>
             )
           })}
