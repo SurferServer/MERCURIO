@@ -346,9 +346,9 @@ def update_content(
                     status_code=403,
                     detail=f"Non puoi spostare da '{current}' a '{data.status}'"
                 )
-        # Collaborators can edit script, notes, deadline, drive_link, and assigned_to
+        # Collaborators can edit title, script, notes, deadline, drive_link, and assigned_to
         if not user.is_admin:
-            non_status_fields = {k: v for k, v in data.model_dump(exclude_unset=True).items() if k not in ('status', 'script', 'notes', 'deadline', 'drive_link', 'assigned_to')}
+            non_status_fields = {k: v for k, v in data.model_dump(exclude_unset=True).items() if k not in ('title', 'status', 'script', 'notes', 'deadline', 'drive_link', 'assigned_to')}
             if non_status_fields:
                 raise HTTPException(status_code=403, detail="Non hai i permessi per modificare questi campi")
 

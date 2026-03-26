@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { FileText, Plus, ChevronDown, ChevronUp, Trash2, UserPlus, X, Layers, ArrowUpDown, Calendar } from 'lucide-react'
+import { FileText, Plus, ChevronDown, ChevronUp, Trash2, UserPlus, X, Layers, ArrowUpDown, Calendar, Printer } from 'lucide-react'
 import { api } from '../api/client'
 import { useUser } from '../context/UserContext'
 import { BRANDS, STATUSES } from '../api/constants'
@@ -354,6 +354,38 @@ const TASK_STATUS_STYLES = {
   'completato': { label: 'Completato', bg: 'bg-green-100', text: 'text-green-700' },
 }
 
+function handlePrint(item) {
+  const brandLabel = BRANDS[item.brand]?.label || item.brand
+  const typeLabel = BRIEF_TYPES[item.brief_type]?.label || item.brief_type
+  const date = new Date(item.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })
+  const w = window.open('', '_blank', 'width=800,height=600')
+  if (!w) return
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${item.title}</title>
+<style>
+  body { font-family: 'Segoe UI', system-ui, sans-serif; max-width: 700px; margin: 40px auto; padding: 0 24px; color: #1c1917; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .meta { font-size: 13px; color: #78716c; margin-bottom: 24px; }
+  .meta span { margin-right: 16px; }
+  .content { font-size: 14px; line-height: 1.7; white-space: pre-wrap; background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 8px; padding: 20px; }
+  .notes { margin-top: 20px; font-size: 13px; color: #57534e; border-top: 1px solid #e7e5e4; padding-top: 16px; }
+  .notes strong { color: #1c1917; }
+  @media print { body { margin: 20px; } }
+</style></head><body>
+<h1>${item.title}</h1>
+<div class="meta">
+  <span>${typeLabel}</span>
+  <span>${brandLabel}</span>
+  <span>${date}</span>
+  ${item.assigned_to ? `<span>Assegnato a: ${item.assigned_to.charAt(0).toUpperCase() + item.assigned_to.slice(1)}</span>` : ''}
+</div>
+<div class="content">${item.content.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
+${item.notes ? `<div class="notes"><strong>Note:</strong> ${item.notes.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>` : ''}
+</body></html>`)
+  w.document.close()
+  w.focus()
+  setTimeout(() => w.print(), 300)
+}
+
 function ScriptBriefCard({ item, isAdmin, expanded, onToggle, editingAssign, onEditAssign, onAssign, onDelete }) {
   const brand = BRANDS[item.brand] || {}
   const typeInfo = BRIEF_TYPES[item.brief_type] || {}
@@ -373,6 +405,13 @@ function ScriptBriefCard({ item, isAdmin, expanded, onToggle, editingAssign, onE
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); handlePrint(item) }}
+            className="p-1.5 rounded-lg hover:bg-stone-100 text-stone-400 hover:text-stone-600 transition-colors"
+            title="Stampa"
+          >
+            <Printer size={15} />
+          </button>
           {taskStatus && <Tag bg={taskStatus.bg} text={taskStatus.text}>{taskStatus.label}</Tag>}
           <Tag bg={typeInfo.bg} text={typeInfo.text}>{typeInfo.label}</Tag>
           <Tag bg={brand.bg} text={brand.text}>{brand.label}</Tag>

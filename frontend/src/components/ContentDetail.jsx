@@ -98,10 +98,16 @@ export default function ContentDetail({ showToast }) {
   const handleSave = async () => {
     try {
       const payload = {
-        ...form,
+        title: form.title,
+        script: form.script,
+        notes: form.notes,
         assigned_to: form.assigned_to || null,
         deadline: form.deadline ? new Date(form.deadline).toISOString() : null,
         drive_link: form.drive_link || null,
+      }
+      // Only send status if it actually changed — avoids 403 for collaborators
+      if (form.status !== item.status) {
+        payload.status = form.status
       }
       const updated = await api.updateContent(id, payload)
       setItem(updated)
