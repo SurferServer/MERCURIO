@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X, Upload } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, STATUSES } from '../api/constants'
+import { useUser } from '../context/UserContext'
 import Tag from './Tag'
 import { Avatar } from './Tag'
 import SmartThumb from './SmartThumb'
@@ -37,12 +38,17 @@ const VIEW_MODES = [
 
 export default function CalendarPage() {
   const navigate = useNavigate()
+  const { isAdmin, token } = useUser()
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
   const [items, setItems] = useState([])
   const [selectedDay, setSelectedDay] = useState(null)
   const [viewMode, setViewMode] = useState('deadline')
+  const [importing, setImporting] = useState(false)
+  const [importResult, setImportResult] = useState(null)
+  const fileInputRef = useRef(null)
+  const [loadingItems, setLoadingItems] = useState(false)
 
   // Paginate through all items (handles any backend limit)
   const loadAll = async (params) => {
@@ -58,8 +64,8 @@ export default function CalendarPage() {
     return all
   }
 
-  useEffect(() => {
-    // Load ALL content (active + archived), paginated, then filter client-side by month
+  const reloadAll = () => {
+    setLoadingItems(true)
     Promise.all([
       loadAll({}),
       loadAll({ archived: true }),
@@ -67,8 +73,38 @@ export default function CalendarPage() {
       const map = new Map()
       ;[...active, ...archived].forEach(i => map.set(i.id, i))
       setItems([...map.values()])
-    })
-  }, [])
+    }).finally(() => setLoadingItems(false))
+  }
+
+  useEffect(() => { reloadAll() }, [])
+
+  const handleImportCSV = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportResult(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch('/api/contents/import-csv', {
+        method: 'POST',
+        body: form,
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Errore import' }))
+        throw new Error(err.detail || 'Import fallito')
+      }
+      const result = await res.json()
+      setImportResult(result)
+      reloadAll()
+    } catch (err) {
+      setImportResult({ error: err.message })
+    } finally {
+      setImporting(false)
+      e.target.value = ''
+    }
+  }
 
   const days = useMemo(() => getMonthDays(year, month), [year, month])
 
@@ -109,8 +145,33 @@ export default function CalendarPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-1 text-stone-800">Calendario</h2>
-      <p className="text-sm text-stone-500 mb-6">Tutti i contenuti nel mese</p>
+      <div className="flex items-center justify-between mb-1">
+        <h2 className="text-2xl font-bold text-stone-800">Calendario</h2>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <input ref={fileInputRef} type="file" accept=".csv" onChange={handleImportCSV} className="hidden" />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={importing}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border border-stone-200 hover:bg-stone-50 text-stone-600 font-medium disabled:opacity-50"
+            >
+              <Upload size={14} />
+              {importing ? 'Importo...' : 'Importa CSV'}
+            </button>
+          </div>
+        )}
+      </div>
+      {importResult && (
+        <div className={`text-xs px-3 py-2 rounded-lg mb-2 ${importResult.error ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          {importResult.error
+            ? `Errore: ${importResult.error}`
+            : `Importati ${importResult.created} contenuti (${importResult.skipped} già presenti o saltati)`}
+          <button onClick={() => setImportResult(null)} className="ml-2 underline">chiudi</button>
+        </div>
+      )}
+      <p className="text-sm text-stone-500 mb-6">
+        {loadingItems ? 'Caricamento...' : `${items.length} contenuti totali`}
+      </p>
 
       {/* Month navigation + view mode */}
       <div className="flex items-center gap-4 mb-5 flex-wrap">

@@ -1,6 +1,9 @@
+import csv
+import io
+import os
 from datetime import datetime, timezone
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from slowapi import Limiter
@@ -370,6 +373,117 @@ def create_content(
     db.commit()
 
     return content
+
+
+@router.post("/import-csv")
+async def import_csv(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(require_admin),
+):
+    """Import archived content from CSV files (admin only).
+    Supports two CSV formats:
+    - Video CSV: Cartella, Nome Video, Link, Data caricamento, Percorso cartella, Link cartella
+    - Statiche CSV: Cartella, File, Link, Data creazione
+    """
+    raw = await file.read()
+    text = raw.decode("utf-8-sig")  # handle BOM
+    reader = csv.DictReader(io.StringIO(text))
+    headers = reader.fieldnames or []
+
+    is_video_csv = "Data caricamento" in headers
+    is_static_csv = "Data creazione" in headers
+
+    if not is_video_csv and not is_static_csv:
+        raise HTTPException(400, "CSV non riconosciuto. Serve colonna 'Data caricamento' o 'Data creazione'.")
+
+    created = 0
+    skipped = 0
+
+    for row in reader:
+        # Extract drive link — skip rows without it
+        drive_link = (row.get("Link") or "").strip()
+        if not drive_link or not drive_link.startswith("http"):
+            skipped += 1
+            continue
+
+        # Skip if already imported (check by drive_link)
+        exists = db.query(Content.id).filter(Content.drive_link == drive_link).first()
+        if exists:
+            skipped += 1
+            continue
+
+        # Title: use Cartella name
+        title = (row.get("Cartella") or row.get("Nome Video") or "Senza titolo").strip()
+        file_name = (row.get("Nome Video") or row.get("File") or "").strip()
+
+        # Parse date
+        date_val = None
+        if is_video_csv:
+            raw_date = (row.get("Data caricamento") or "").strip()
+            if raw_date:
+                try:
+                    date_val = datetime.strptime(raw_date, "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    pass
+        else:
+            raw_date = (row.get("Data creazione") or "").strip()
+            if raw_date:
+                try:
+                    date_val = datetime.strptime(raw_date, "%d/%m/%Y %H.%M.%S")
+                except ValueError:
+                    pass
+
+        # Determine content_type from file extension
+        ext = os.path.splitext(file_name)[1].lower() if file_name else ""
+        if ext in (".mp4", ".mov", ".avi", ".mkv", ".webm"):
+            content_type = ContentTypeEnum.VIDEO
+        else:
+            content_type = ContentTypeEnum.GRAFICA
+
+        # Determine brand and channel from folder path
+        folder_path = (row.get("Percorso cartella") or "").lower()
+        folder_link = (row.get("Link cartella") or "").strip()
+
+        # Brand detection
+        if "quiz patente" in folder_path or "quiz_patente" in title.lower():
+            brand = BrandEnum.QUIZ_PATENTE
+        elif "rinnovala" in folder_path or "rinnovala" in title.lower():
+            brand = BrandEnum.RINNOVALA
+        elif "guida e vai" in folder_path or "guida_e_vai" in title.lower() or "guida sicura" in folder_path:
+            brand = BrandEnum.GUIDA_E_VAI
+        else:
+            brand = BrandEnum.QUIZ_PATENTE  # default
+
+        # Channel detection
+        if "/adv/" in folder_path or "_adv_" in title.lower():
+            channel = ChannelEnum.ADV
+        else:
+            channel = ChannelEnum.ORGANICO
+
+        content = Content(
+            title=title,
+            brand=brand,
+            content_type=content_type,
+            channel=channel,
+            source=SourceEnum.INTERNO,
+            status=StatusEnum.ARCHIVIATO,
+            file_name=file_name or None,
+            drive_link=drive_link,
+            deadline=date_val,
+            created_at=date_val or datetime.now(timezone.utc),
+            completed_at=date_val,
+            notes=f"Importato da CSV: {file.filename}",
+        )
+        db.add(content)
+        created += 1
+
+        # Batch commit every 200 rows
+        if created % 200 == 0:
+            db.commit()
+
+    db.commit()
+    return {"created": created, "skipped": skipped, "total_rows": created + skipped}
 
 
 @router.patch("/{content_id}", response_model=ContentResponse)
