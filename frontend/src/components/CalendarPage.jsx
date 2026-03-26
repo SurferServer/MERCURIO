@@ -45,12 +45,38 @@ export default function CalendarPage() {
   const [viewMode, setViewMode] = useState('deadline')
 
   useEffect(() => {
-    // Load only items for the displayed month (server-side filter, no limit)
+    // Try server-side month filter first; fall back to bulk load if backend doesn't support it yet
     api.listContents({
       year,
       month: month + 1, // JS months are 0-based, API expects 1-based
       date_field: viewMode,
-    }).then(setItems)
+    })
+      .then(data => {
+        if (data && data.length > 0) {
+          setItems(data)
+        } else {
+          // Fallback: load bulk (active + archived) for backward compat
+          return Promise.all([
+            api.listContents({ limit: 500 }),
+            api.listContents({ archived: true, limit: 500 }),
+          ]).then(([active, archived]) => {
+            const map = new Map()
+            ;[...active, ...archived].forEach(i => map.set(i.id, i))
+            setItems([...map.values()])
+          })
+        }
+      })
+      .catch(() => {
+        // Backend doesn't support month params — use old bulk approach
+        Promise.all([
+          api.listContents({ limit: 500 }),
+          api.listContents({ archived: true, limit: 500 }),
+        ]).then(([active, archived]) => {
+          const map = new Map()
+          ;[...active, ...archived].forEach(i => map.set(i.id, i))
+          setItems([...map.values()])
+        })
+      })
   }, [year, month, viewMode])
 
   const days = useMemo(() => getMonthDays(year, month), [year, month])
