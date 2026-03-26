@@ -137,6 +137,26 @@ class ContentFile(Base):
     uploaded_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class DailyPopup(Base):
+    """Admin-written daily message for a collaborator.
+    One row = one popup scheduled for a specific target_user on target_date.
+    When the user logs in and sees the popup, read_at is set.
+    """
+    __tablename__ = "daily_popups"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    target_user = Column(String(50), nullable=False, index=True)      # "federico" or "marzia"
+    target_date = Column(DateTime, nullable=False, index=True)        # date the popup should show
+    message = Column(Text, nullable=True)                              # admin-written communication
+    # Snapshot of tasks at the time the popup was shown (saved as JSON string)
+    tasks_today_json = Column(Text, nullable=True)
+    tasks_week_json = Column(Text, nullable=True)
+    read_at = Column(DateTime, nullable=True)                          # when the user saw it
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
+                        onupdate=lambda: datetime.now(timezone.utc))
+
+
 class Comment(Base):
     __tablename__ = "comments"
 

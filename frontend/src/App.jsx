@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, Columns3, Archive, Image, LogOut, FileText, CalendarDays } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, Columns3, Archive, Image, LogOut, FileText, CalendarDays, MessageSquare } from 'lucide-react'
 import { useUser } from './context/UserContext'
 import { setAuthToken } from './api/client'
 import UserPicker from './components/UserPicker'
@@ -13,6 +13,8 @@ import ArchivePage from './components/ArchivePage'
 import ContentDetail from './components/ContentDetail'
 import ScriptBriefPage from './components/ScriptBriefPage'
 import CalendarPage from './components/CalendarPage'
+import PopupAdmin from './components/PopupAdmin'
+import DailyPopupModal from './components/DailyPopupModal'
 import Toast from './components/Toast'
 
 function SidebarAvatar({ userId, user }) {
@@ -64,6 +66,8 @@ export default function App() {
 
   if (!user) return <UserPicker />
 
+  const isCollaborator = !isAdmin && !isMarketing
+
   const navItems = isMarketing
     ? [
         { to: '/script-brief', icon: FileText, label: 'Script / Brief' },
@@ -91,7 +95,7 @@ export default function App() {
             <h1 className="text-xl font-black tracking-tight text-mercury-400">MERCURIO</h1>
             <span className="text-[10px] text-white/40 uppercase tracking-widest">Gestione Contenuti</span>
           </div>
-          <div className="flex-1 py-2 relative z-10">
+          <div className="flex-1 py-2 relative z-10 overflow-y-auto">
             {navItems.map(({ to, icon: Icon, label, highlight }) => (
               <NavLink
                 key={to}
@@ -114,6 +118,39 @@ export default function App() {
                 {label}
               </NavLink>
             ))}
+
+            {/* Admin-only: Popup management links */}
+            {isAdmin && (
+              <div className="mt-4 pt-3 mx-4 border-t border-white/10">
+                <div className="text-[9px] text-white/25 uppercase tracking-widest px-2 mb-2">Comunicazioni</div>
+                <NavLink
+                  to="/popup/federico"
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg transition-colors ${
+                      isActive
+                        ? 'bg-orange-500/20 text-orange-300'
+                        : 'text-white/40 hover:bg-white/5 hover:text-white/70'
+                    }`
+                  }
+                >
+                  <MessageSquare size={14} />
+                  Popup Federico
+                </NavLink>
+                <NavLink
+                  to="/popup/marzia"
+                  className={({ isActive }) =>
+                    `flex items-center gap-2.5 px-3 py-2 text-xs rounded-lg transition-colors ${
+                      isActive
+                        ? 'bg-red-500/20 text-red-300'
+                        : 'text-white/40 hover:bg-white/5 hover:text-white/70'
+                    }`
+                  }
+                >
+                  <MessageSquare size={14} />
+                  Popup Marzia
+                </NavLink>
+              </div>
+            )}
           </div>
           <div className="p-4 border-t border-white/10 relative z-10">
             <div className="flex items-center gap-3 mb-3">
@@ -144,8 +181,12 @@ export default function App() {
             <Route path="/galleria" element={<Gallery />} />
             <Route path="/archivio" element={<ArchivePage showToast={showToast} />} />
             <Route path="/contenuto/:id" element={<ContentDetail showToast={showToast} />} />
+            {isAdmin && <Route path="/popup/:targetUser" element={<PopupAdmin showToast={showToast} />} />}
           </Routes>
         </main>
+
+        {/* Daily popup for collaborators — shows once per day on first login */}
+        {isCollaborator && <DailyPopupModal />}
 
         {toast && <Toast message={toast.msg} type={toast.type} />}
       </div>

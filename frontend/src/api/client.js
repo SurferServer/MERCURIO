@@ -174,6 +174,14 @@ export const api = {
   getComments: (contentId) => request(`/contents/${contentId}/comments`),
   addComment: (contentId, data) => request(`/contents/${contentId}/comments`, { method: 'POST', body: JSON.stringify(data) }),
 
+  // Daily Popups
+  getMyDailyPopup: () => request('/popups/my-daily'),
+  markPopupRead: (popupId) => request(`/popups/my-daily/${popupId}/read`, { method: 'POST' }),
+  listPopupsForUser: (targetUser) => request(`/popups/admin/${targetUser}`),
+  createPopup: (data) => request('/popups/admin', { method: 'POST', body: JSON.stringify(data) }),
+  updatePopup: (id, data) => request(`/popups/admin/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deletePopup: (id) => request(`/popups/admin/${id}`, { method: 'DELETE' }),
+
   // Export (returns authenticated blob URL)
   downloadExport: async (params = {}) => {
     const qs = new URLSearchParams(

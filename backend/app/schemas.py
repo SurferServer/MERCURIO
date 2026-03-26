@@ -283,6 +283,31 @@ class DevTaskResponse(BaseModel):
         from_attributes = True
 
 
+# ── Daily Popup ────────────────────────────────────────
+
+class DailyPopupCreate(BaseModel):
+    target_user: str  # "federico" or "marzia"
+    target_date: str  # "YYYY-MM-DD"
+    message: Optional[str] = None
+
+class DailyPopupUpdate(BaseModel):
+    message: Optional[str] = None
+
+class DailyPopupResponse(BaseModel):
+    id: int
+    target_user: str
+    target_date: datetime
+    message: Optional[str]
+    tasks_today_json: Optional[str]
+    tasks_week_json: Optional[str]
+    read_at: Optional[datetime]
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class CommentCreate(BaseModel):
     text: str
 

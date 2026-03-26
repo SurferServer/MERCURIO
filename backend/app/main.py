@@ -11,7 +11,7 @@ from PIL import Image as PILImage
 import io
 
 from .database import engine, Base
-from .routes import contents, files, comments, script_briefs, dev_tasks
+from .routes import contents, files, comments, script_briefs, dev_tasks, popups
 from .auth import create_token, verify_password, USERS, get_current_user, CurrentUser
 
 import logging
@@ -271,6 +271,7 @@ app.include_router(files.router)
 app.include_router(comments.router)
 app.include_router(script_briefs.router)
 app.include_router(dev_tasks.router)
+app.include_router(popups.router)
 
 @app.get("/api/health")
 def health_check():
