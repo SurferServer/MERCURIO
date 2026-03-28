@@ -197,7 +197,7 @@ export default function ContentDetail({ showToast }) {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main content */}
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-7">
+          <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-7">
             {/* Header */}
             <div className="flex items-start gap-4 mb-6 pb-5 border-b border-stone-100">
               <SmartThumb item={item} size="sm" />
@@ -641,7 +641,7 @@ export default function ContentDetail({ showToast }) {
         {/* Sidebar: Timeline & Comments */}
         <div className="space-y-6">
           {/* Timeline */}
-          <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-5">
+          <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-5">
             <h3 className="text-sm font-semibold text-stone-700 mb-4 flex items-center gap-2">
               <Clock size={16} /> Cronologia
             </h3>
@@ -663,7 +663,7 @@ export default function ContentDetail({ showToast }) {
           </div>
 
           {/* Comments */}
-          <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-5">
+          <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-5">
             <h3 className="text-sm font-semibold text-stone-700 mb-4">Commenti</h3>
             {comments.length === 0 && (
               <p className="text-sm text-stone-400 mb-4">Nessun commento.</p>

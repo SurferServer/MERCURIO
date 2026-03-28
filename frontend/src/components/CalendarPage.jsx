@@ -205,7 +205,7 @@ export default function CalendarPage() {
       </div>
 
       {/* Calendar grid */}
-      <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-hidden">
         {/* Day headers */}
         <div className="grid grid-cols-7 border-b border-stone-200">
           {DAYS_IT.map(d => (

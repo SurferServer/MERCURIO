@@ -85,7 +85,7 @@ export default function Gallery() {
                 return (
                   <div
                     key={item.id}
-                    className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden hover:shadow-lg transition-all cursor-pointer hover:-translate-y-1"
+                    className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-hidden hover:shadow-lg transition-all cursor-pointer hover:-translate-y-1"
                     onClick={() => navigate(`/contenuto/${item.id}`)}
                   >
                     <SmartThumb item={item} size="lg" />

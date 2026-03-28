@@ -143,22 +143,25 @@ export default function Dashboard() {
 
       {/* ── Alert: scaduti ─────────────────────────────── */}
       {stats.scaduti > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-center gap-3">
-          <AlertTriangle size={20} className="text-red-500" />
+        <div className="bg-gradient-to-r from-red-50 to-orange-50 border border-red-200/60 rounded-2xl p-4 mb-6 flex items-center gap-3 shadow-soft animate-fade-in-up">
+          <div className="p-2 rounded-xl bg-red-100">
+            <AlertTriangle size={18} className="text-red-500" />
+          </div>
           <span className="text-sm text-red-700 font-medium">{stats.scaduti} contenut{stats.scaduti === 1 ? 'o' : 'i'} scadut{stats.scaduti === 1 ? 'o' : 'i'}</span>
         </div>
       )}
 
       {/* ── Stat Cards ─────────────────────────────────── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
-        {statCards.map(({ id, label, value, icon: Icon, color, bg, ring }) => (
+        {statCards.map(({ id, label, value, icon: Icon, color, bg, ring }, idx) => (
           <div
             key={id}
             onClick={() => togglePanel(id)}
-            className={`bg-white/90 backdrop-blur rounded-xl p-5 border border-stone-200 cursor-pointer transition-all hover:shadow-md ${expandedPanel === id ? `ring-2 ${ring}` : ''}`}
+            className={`bg-white/90 backdrop-blur rounded-2xl p-5 border border-stone-100 cursor-pointer transition-all shadow-soft hover:shadow-soft-lg hover:-translate-y-0.5 animate-fade-in-up ${expandedPanel === id ? `ring-2 ${ring}` : ''}`}
+            style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'backwards' }}
           >
-            <div className={`inline-flex p-2 rounded-lg ${bg} mb-3`}>
-              <Icon size={18} className={color} />
+            <div className={`inline-flex p-2.5 rounded-xl ${bg} mb-3`}>
+              <Icon size={18} className={color} strokeWidth={2.2} />
             </div>
             <div className="text-2xl font-bold text-stone-800">{value}</div>
             <div className="flex items-center justify-between mt-1">
@@ -171,7 +174,7 @@ export default function Dashboard() {
 
       {/* ── Expand Panel (click on stat card) ──────────── */}
       {expandedPanel && (
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 mb-6 overflow-hidden">
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft mb-6 overflow-hidden animate-fade-in-up">
           {getPanelItems(expandedPanel).length === 0 ? (
             <div className="p-6 text-center text-stone-400 text-sm">Nessun elemento</div>
           ) : (
@@ -186,9 +189,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
         {/* 1) In lavorazione */}
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
-            <Clock size={16} className="text-amber-500" />
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-hidden">
+          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, rgba(251, 191, 36, 0.06) 0%, transparent 100%)' }}>
+            <div className="p-1.5 rounded-lg bg-amber-100">
+              <Clock size={14} className="text-amber-600" />
+            </div>
             <span className="font-semibold text-sm text-stone-700">In lavorazione</span>
             <span className="ml-auto text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">{inLavorazione.length}</span>
           </div>
@@ -213,9 +218,11 @@ export default function Dashboard() {
         </div>
 
         {/* 2) Scadenze imminenti */}
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
-            <CalendarClock size={16} className="text-red-500" />
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-hidden">
+          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, transparent 100%)' }}>
+            <div className="p-1.5 rounded-lg bg-red-100">
+              <CalendarClock size={14} className="text-red-600" />
+            </div>
             <span className="font-semibold text-sm text-stone-700">Scadenze imminenti</span>
             {urgenti.length > 0 && (
               <span className="ml-auto text-xs font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded-full">{urgenti.length}</span>
@@ -243,9 +250,11 @@ export default function Dashboard() {
         </div>
 
         {/* 3) Da archiviare */}
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2">
-            <Archive size={16} className="text-green-600" />
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-hidden">
+          <div className="px-5 py-4 border-b border-stone-100 flex items-center gap-2" style={{ background: 'linear-gradient(135deg, rgba(22, 163, 74, 0.05) 0%, transparent 100%)' }}>
+            <div className="p-1.5 rounded-lg bg-green-100">
+              <Archive size={14} className="text-green-600" />
+            </div>
             <span className="font-semibold text-sm text-stone-700">Da archiviare</span>
             {daArchiviare.length > 0 && (
               <span className="ml-auto text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">{daArchiviare.length}</span>

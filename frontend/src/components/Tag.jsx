@@ -2,7 +2,7 @@ import React from 'react'
 
 export default function Tag({ children, bg = 'bg-stone-100', text = 'text-stone-700', className = '' }) {
   return (
-    <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded ${bg} ${text} ${className}`}>
+    <span className={`inline-block text-[10px] font-semibold px-2.5 py-0.5 rounded-full border border-transparent ${bg} ${text} ${className}`} style={{ borderColor: 'rgba(0,0,0,0.04)' }}>
       {children}
     </span>
   )

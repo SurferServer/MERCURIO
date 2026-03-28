@@ -89,7 +89,7 @@ export default function DevTasksPage({ showToast }) {
 
       {/* Create form */}
       {showCreate && isFederico && (
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-6 mb-6">
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-6 mb-6">
           <h3 className="text-sm font-semibold text-stone-700 mb-4">Nuovo Task di Sviluppo</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="md:col-span-2">
@@ -113,7 +113,7 @@ export default function DevTasksPage({ showToast }) {
 
       {/* Active tasks */}
       {active.length === 0 && completed.length === 0 && (
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-12 text-center">
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-12 text-center">
           <Code2 size={40} className="mx-auto text-stone-300 mb-3" />
           <div className="text-stone-500 text-sm">Nessun task di sviluppo presente.</div>
           {isFederico && <div className="text-stone-400 text-xs mt-1">Clicca "Nuovo Task" per aggiungerne uno.</div>}
@@ -167,7 +167,7 @@ export default function DevTasksPage({ showToast }) {
           </h3>
           <div className="space-y-2">
             {completed.map(task => (
-              <div key={task.id} className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 px-5 py-4 opacity-70">
+              <div key={task.id} className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft px-5 py-4 opacity-70">
                 <div className="flex items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-semibold text-stone-500 line-through">{task.title}</div>

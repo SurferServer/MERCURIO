@@ -134,7 +134,7 @@ export default function ScriptBriefPage({ showToast }) {
 
       {/* Create form */}
       {showCreate && (isAdmin || isMarketing) && (
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-6 mb-6">
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-6 mb-6">
           {/* Mode toggle */}
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-stone-700">
@@ -318,7 +318,7 @@ export default function ScriptBriefPage({ showToast }) {
 
       {/* Script/Brief list — only active tasks (not completed/archived) */}
       {items.length === 0 && (
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-12 text-center">
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-12 text-center">
           <FileText size={40} className="mx-auto text-stone-300 mb-3" />
           <div className="text-stone-500 text-sm">Nessuno script o brief attivo.</div>
           {(isAdmin || isMarketing) && <div className="text-stone-400 text-xs mt-1">Clicca "Nuovo" per crearne uno.</div>}
@@ -392,7 +392,7 @@ function ScriptBriefCard({ item, isAdmin, expanded, onToggle, editingAssign, onE
   const taskStatus = item.task_status ? TASK_STATUS_STYLES[item.task_status] : null
 
   return (
-    <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
+    <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-hidden">
       <div className="flex items-center gap-3 px-5 py-3.5 cursor-pointer hover:bg-stone-50/50 transition-colors" onClick={onToggle}>
         <FileText size={18} className="text-stone-400 shrink-0" />
         <div className="flex-1 min-w-0">

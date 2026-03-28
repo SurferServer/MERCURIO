@@ -106,11 +106,29 @@ export default function App() {
       <HalftoneBackground opacity={0.35} />
       <div className="flex h-screen relative z-10">
         {/* Sidebar */}
-        <nav className="w-60 bg-sidebar text-white flex flex-col shrink-0 relative overflow-hidden">
-          <div className="px-6 py-5 border-b border-white/10 relative z-10">
-            <h1 className="text-xl font-black tracking-tight text-mercury-400">MERCURIO</h1>
+        <nav className="w-60 text-white flex flex-col shrink-0 relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #1a0a00 0%, #241006 50%, #1a0a00 100%)' }}>
+          {/* Subtle top glow */}
+          <div className="absolute top-0 left-0 right-0 h-48 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(255, 152, 0, 0.1) 0%, transparent 70%)' }} />
+
+          {/* Logo video header */}
+          <div className="shrink-0 relative z-10 flex items-center justify-center px-4 pt-5 pb-2">
+            <video
+              autoPlay
+              loop
+              muted
+              playsInline
+              className="block"
+              style={{ width: '170px', height: 'auto' }}
+            >
+              <source src="/LOGO.mp4" type="video/mp4" />
+            </video>
+          </div>
+
+          {/* Subtitle */}
+          <div className="shrink-0 px-6 pb-4 pt-1 border-b border-white/10 relative z-10">
             <span className="text-[10px] text-white/40 uppercase tracking-widest">Gestione Contenuti</span>
           </div>
+
           <div className="flex-1 py-2 relative z-10 overflow-y-auto">
             {navItems.map(({ to, icon: Icon, label, highlight }) => (
               <NavLink
@@ -120,17 +138,22 @@ export default function App() {
                   highlight
                     ? `flex items-center gap-3 mx-3 my-1 px-4 py-3.5 text-[15px] font-bold rounded-xl transition-all border-l-0 ${
                         isActive
-                          ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/30'
-                          : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/40 hover:text-amber-200'
+                          ? 'text-white shadow-lg shadow-amber-500/30'
+                          : 'bg-amber-500/15 text-amber-300 hover:bg-amber-500/30 hover:text-amber-200 hover:shadow-md hover:shadow-amber-500/10'
                       }`
-                    : `flex items-center gap-3 px-6 py-3 text-sm transition-colors border-l-[3px] ${
+                    : `flex items-center gap-3 px-6 py-3 text-sm transition-all border-l-[3px] rounded-r-lg ${
                         isActive
-                          ? 'bg-mercury-500/15 text-mercury-400 border-mercury-500'
-                          : 'text-white/50 border-transparent hover:bg-white/5 hover:text-white/80'
+                          ? 'bg-mercury-500/15 text-mercury-400 border-mercury-500 sidebar-active-glow'
+                          : 'text-white/50 border-transparent hover:bg-white/[0.06] hover:text-white/80 hover:border-white/10'
                       }`
                 }
+                style={({ isActive }) =>
+                  highlight && isActive
+                    ? { background: 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)' }
+                    : {}
+                }
               >
-                <Icon size={highlight ? 22 : 18} />
+                <Icon size={highlight ? 22 : 18} strokeWidth={highlight ? 2.5 : 2} />
                 {label}
               </NavLink>
             ))}
@@ -191,17 +214,20 @@ export default function App() {
               </div>
             )}
           </div>
+
           <div className="p-4 border-t border-white/10 relative z-10">
             <div className="flex items-center gap-3 mb-3">
-              <SidebarAvatar userId={userId} user={user} />
+              <div className="ring-2 ring-mercury-500/30 rounded-full p-0.5">
+                <SidebarAvatar userId={userId} user={user} />
+              </div>
               <div>
-                <div className="text-sm font-medium text-white/80">{user.name}</div>
-                <div className="text-[10px] text-white/30">{isAdmin ? 'Responsabile' : isMarketing ? 'Ufficio Marketing' : 'Collaboratore'}</div>
+                <div className="text-sm font-medium text-white/90">{user.name}</div>
+                <div className="text-[10px] text-mercury-400/60 font-medium">{isAdmin ? 'Responsabile' : isMarketing ? 'Ufficio Marketing' : 'Collaboratore'}</div>
               </div>
             </div>
             <button
               onClick={logout}
-              className="flex items-center gap-2 text-xs text-white/30 hover:text-white/60 transition-colors"
+              className="flex items-center gap-2 text-xs text-white/30 hover:text-mercury-400 transition-colors"
             >
               <LogOut size={12} /> Cambia utente
             </button>

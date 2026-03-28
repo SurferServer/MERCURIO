@@ -77,11 +77,11 @@ export default function Board({ showToast }) {
       <p className="text-sm text-stone-500 mb-4">Stato di avanzamento dei contenuti</p>
 
       <div className="flex gap-3 mb-5">
-        <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)} className="px-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80">
+        <select value={brandFilter} onChange={e => setBrandFilter(e.target.value)} className="px-3 py-2 border border-stone-200 rounded-xl text-sm bg-white/80 shadow-soft focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10">
           <option value="">Tutti i brand</option>
           {Object.entries(BRANDS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        <select value={assignFilter} onChange={e => setAssignFilter(e.target.value)} className="px-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80">
+        <select value={assignFilter} onChange={e => setAssignFilter(e.target.value)} className="px-3 py-2 border border-stone-200 rounded-xl text-sm bg-white/80 shadow-soft focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10">
           <option value="">Tutti</option>
           {Object.entries(ASSIGNEES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
@@ -98,11 +98,11 @@ export default function Board({ showToast }) {
             'bg-emerald-50/30 border-emerald-200/60', // Completato — verde
           ]
           return (
-            <div key={status.value} className={`backdrop-blur rounded-xl p-3 min-h-[300px] border ${colBgs[colIndex]}`}>
+            <div key={status.value} className={`backdrop-blur rounded-2xl p-3 min-h-[300px] border shadow-soft ${colBgs[colIndex]}`}>
               <div className="flex items-center gap-2 mb-3">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ background: status.color }} />
+                <span className="w-2.5 h-2.5 rounded-full shadow-sm" style={{ background: status.color, boxShadow: `0 0 8px ${status.color}40` }} />
                 <span className="text-xs font-semibold uppercase tracking-wide text-stone-600">{status.label}</span>
-                <span className="text-[10px] font-bold bg-stone-200 text-stone-600 rounded-full px-2 py-0.5">{colItems.length}</span>
+                <span className="text-[10px] font-bold bg-white/60 text-stone-600 rounded-full px-2 py-0.5 shadow-sm">{colItems.length}</span>
               </div>
 
               {colItems.length === 0 && <div className="text-center text-stone-400 text-xs py-8">Nessun elemento</div>}
@@ -136,7 +136,7 @@ export default function Board({ showToast }) {
                         : ''
 
                 return (
-                  <div key={item.id} className={`${assigneeBg} backdrop-blur rounded-lg mb-1.5 border transition-shadow hover:shadow-md overflow-hidden ${assigneeBorder} ${overdue ? 'border-red-300' : 'border-stone-200'}`}>
+                  <div key={item.id} className={`${assigneeBg} backdrop-blur rounded-xl mb-2 border transition-all hover:shadow-soft-lg hover:-translate-y-0.5 overflow-hidden ${assigneeBorder} ${overdue ? 'border-red-300' : 'border-stone-200/80'}`}>
                     <div className="px-2.5 py-2 min-w-0">
                       <div className="flex items-center justify-between mb-0.5">
                         <div className="flex items-center gap-1">
@@ -248,10 +248,10 @@ function ActionBtn({ children, onClick, danger }) {
   return (
     <button
       onClick={onClick}
-      className={`text-[11px] px-2.5 py-1 rounded border transition-colors ${
+      className={`text-[11px] font-medium px-2.5 py-1 rounded-lg border transition-all ${
         danger
-          ? 'border-stone-200 hover:bg-red-500 hover:text-white hover:border-red-500'
-          : 'border-stone-200 hover:bg-accent hover:text-white hover:border-accent'
+          ? 'border-stone-200 text-stone-500 hover:bg-red-500 hover:text-white hover:border-red-500 hover:shadow-sm'
+          : 'border-stone-200 text-stone-600 hover:bg-accent hover:text-white hover:border-accent hover:shadow-sm'
       }`}
     >
       {children}

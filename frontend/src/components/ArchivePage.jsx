@@ -128,7 +128,7 @@ export default function ArchivePage({ showToast }) {
       </div>
 
       {viewMode === 'table' && (
-        <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-x-auto">
+        <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="bg-stone-50">
@@ -196,7 +196,7 @@ export default function ArchivePage({ showToast }) {
                       const type = TYPES[item.content_type] || {}
                       const channel = CHANNELS[item.channel] || {}
                       return (
-                        <div key={item.id} className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden hover:shadow-lg transition-all cursor-pointer hover:-translate-y-1" onClick={() => navigate(`/contenuto/${item.id}`)}>
+                        <div key={item.id} className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-hidden hover:shadow-lg transition-all cursor-pointer hover:-translate-y-1" onClick={() => navigate(`/contenuto/${item.id}`)}>
                           <SmartThumb item={item} size="lg" />
                           <div className="p-3">
                             <div className="text-sm font-semibold mb-2 truncate text-stone-700">{item.title}</div>

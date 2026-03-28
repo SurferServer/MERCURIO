@@ -82,7 +82,7 @@ export default function PopupAdmin({ showToast }) {
       </p>
 
       {/* Compose area */}
-      <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-5 mb-8">
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-5 mb-8">
         <label className="block text-xs font-semibold text-stone-500 uppercase tracking-wide mb-2">
           Comunicazione per domani
         </label>
@@ -127,7 +127,7 @@ export default function PopupAdmin({ showToast }) {
           try { tasksWeek = popup.tasks_week_json ? JSON.parse(popup.tasks_week_json) : [] } catch { /* malformed */ }
 
           return (
-            <div key={popup.id} className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 overflow-hidden">
+            <div key={popup.id} className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft overflow-hidden">
               <div
                 className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-stone-50 transition-colors"
                 onClick={() => setExpandedId(isExpanded ? null : popup.id)}

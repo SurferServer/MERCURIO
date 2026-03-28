@@ -79,14 +79,14 @@ export default function CreateContent({ showToast }) {
     }
   }
 
-  const inputCls = "w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm bg-white/80 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10"
+  const inputCls = "w-full px-4 py-2.5 border border-stone-200 rounded-xl text-sm bg-white/80 shadow-soft focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent/10 focus:shadow-glow-accent/5"
 
   return (
     <div>
       <h2 className="text-2xl font-bold mb-1 text-stone-800">Crea Contenuto</h2>
       <p className="text-sm text-stone-500 mb-6">Nuovo script video, grafica statica o richiesta marketing</p>
 
-      <div className="bg-white/90 backdrop-blur rounded-xl border border-stone-200 p-7">
+      <div className="bg-white/90 backdrop-blur rounded-2xl border border-stone-100 shadow-soft p-7">
         <h3 className="text-base font-semibold mb-6 pb-4 border-b border-stone-100 text-stone-700">Nuovo Contenuto</h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -168,10 +168,10 @@ export default function CreateContent({ showToast }) {
         </div>
 
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-stone-100">
-          <button onClick={() => setForm({ ...EMPTY })} className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium border border-stone-200 hover:bg-stone-50 transition-colors">
+          <button onClick={() => setForm({ ...EMPTY })} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium border border-stone-200 hover:bg-stone-50 hover:shadow-soft transition-all">
             <RotateCcw size={15} /> Annulla
           </button>
-          <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold bg-accent text-white hover:bg-mercury-800 disabled:opacity-50 transition-colors">
+          <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-50 transition-all shadow-glow-accent hover:shadow-soft-xl hover:-translate-y-0.5" style={{ background: 'linear-gradient(135deg, #e8580c 0%, #ff6d2e 100%)' }}>
             <Save size={15} /> {saving ? 'Salvataggio...' : 'Salva Contenuto'}
           </button>
         </div>
