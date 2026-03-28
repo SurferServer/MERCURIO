@@ -55,7 +55,7 @@ def list_contents(
     # Calendar month filter — returns ALL items matching the given month (ignores limit)
     year: Optional[int] = None,
     month: Optional[int] = Query(default=None, ge=1, le=12),
-    date_field: Optional[str] = Query(default="deadline", pattern="^(deadline|created|completed)$"),
+    date_field: Optional[str] = Query(default="deadline", pattern="^(deadline|created|completed|archived)$"),
     limit: int = Query(default=200, le=5000),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
@@ -136,6 +136,12 @@ def list_contents(
                         extract('month', Content.created_at) == month,
                     ),
                 )
+            )
+        elif date_field == "archived":
+            q = q.filter(
+                Content.archived_at.isnot(None),
+                extract('year', Content.archived_at) == year,
+                extract('month', Content.archived_at) == month,
             )
         else:  # created
             q = q.filter(

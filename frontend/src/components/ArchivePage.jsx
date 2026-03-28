@@ -1,10 +1,12 @@
-import React, { useEffect, useState, useCallback } from 'react'
+import React, { useEffect, useState, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Grid3X3, List, ExternalLink, Search, FolderOpen } from 'lucide-react'
+import { Download, Grid3X3, List, ExternalLink, Search, FolderOpen, ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../api/client'
 import { BRANDS, TYPES, CHANNELS, SOURCES } from '../api/constants'
 import Tag from './Tag'
 import SmartThumb from './SmartThumb'
+
+const MONTH_NAMES = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre']
 
 export default function ArchivePage({ showToast }) {
   const [items, setItems] = useState([])
@@ -12,14 +14,21 @@ export default function ArchivePage({ showToast }) {
   const [filters, setFilters] = useState({ brand: '', content_type: '', channel: '', source: '' })
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState('table')
+  const [archiveMonth, setArchiveMonth] = useState('') // '' = all, 'YYYY-MM' = specific month
   const navigate = useNavigate()
 
   const load = useCallback(() => {
     const params = { ...filters, archived: true }
     if (searchQuery.trim()) params.search = searchQuery.trim()
+    if (archiveMonth) {
+      const [y, m] = archiveMonth.split('-')
+      params.year = parseInt(y)
+      params.month = parseInt(m)
+      params.date_field = 'archived'
+    }
     api.listContents(params).then(setItems)
     api.getArchiveSummary().then(setSummary)
-  }, [filters, searchQuery])
+  }, [filters, searchQuery, archiveMonth])
 
   useEffect(() => { load() }, [load])
 
@@ -70,6 +79,45 @@ export default function ArchivePage({ showToast }) {
           <option value="">Tutte le origini</option>
           {Object.entries(SOURCES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
+        <div className="flex items-center gap-1">
+          {archiveMonth && (
+            <button
+              onClick={() => {
+                const [y, m] = archiveMonth.split('-').map(Number)
+                const prev = m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`
+                setArchiveMonth(prev)
+              }}
+              className="p-1.5 hover:bg-stone-100 rounded"
+            ><ChevronLeft size={16} /></button>
+          )}
+          <select
+            value={archiveMonth}
+            onChange={e => setArchiveMonth(e.target.value)}
+            className="px-3 py-1.5 border border-stone-200 rounded-lg text-sm bg-white/80"
+          >
+            <option value="">Tutte le date</option>
+            {(() => {
+              const opts = []
+              const now = new Date()
+              for (let i = 0; i < 24; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+                opts.push(<option key={val} value={val}>{MONTH_NAMES[d.getMonth()]} {d.getFullYear()}</option>)
+              }
+              return opts
+            })()}
+          </select>
+          {archiveMonth && (
+            <button
+              onClick={() => {
+                const [y, m] = archiveMonth.split('-').map(Number)
+                const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`
+                setArchiveMonth(next)
+              }}
+              className="p-1.5 hover:bg-stone-100 rounded"
+            ><ChevronRight size={16} /></button>
+          )}
+        </div>
         <div className="ml-auto flex items-center gap-2">
           <button onClick={() => setViewMode('table')} className={`p-1.5 rounded ${viewMode === 'table' ? 'bg-stone-200' : 'hover:bg-stone-100'}`}><List size={18} /></button>
           <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-stone-200' : 'hover:bg-stone-100'}`}><Grid3X3 size={18} /></button>
