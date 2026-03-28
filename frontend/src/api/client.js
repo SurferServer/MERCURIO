@@ -203,8 +203,8 @@ export const api = {
   },
 
   // ── Marketing notifications ──
-  getMarketingNotifCount: () => get('/notifications/marketing/count'),
-  listMarketingNotifs: () => get('/notifications/marketing'),
-  markAllNotifsRead: () => post('/notifications/marketing/read-all'),
-  markNotifRead: (id) => post(`/notifications/marketing/${id}/read`),
+  getMarketingNotifCount: () => request('/notifications/marketing/count'),
+  listMarketingNotifs: () => request('/notifications/marketing'),
+  markAllNotifsRead: () => request('/notifications/marketing/read-all', { method: 'POST' }),
+  markNotifRead: (id) => request(`/notifications/marketing/${id}/read`, { method: 'POST' }),
 }
