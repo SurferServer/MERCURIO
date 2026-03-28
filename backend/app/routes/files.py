@@ -145,7 +145,7 @@ async def upload_file(
         logger.error(f"Drive upload exception for content {content_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=502,
-            detail=f"Errore Google Drive: {str(e)}"
+            detail="Errore durante il caricamento su Google Drive. Riprova tra poco."
         )
 
     if not result:
@@ -375,8 +375,14 @@ def download_file(
 
     # Fallback to local file (legacy, pre-Drive content)
     if content.file_path and os.path.exists(content.file_path):
+        # Security: prevent path traversal — file must be under UPLOAD_DIR
+        upload_dir = os.path.realpath(os.getenv("UPLOAD_DIR", "./uploads"))
+        real_file = os.path.realpath(content.file_path)
+        if not real_file.startswith(upload_dir):
+            logger.warning(f"Path traversal blocked: {content.file_path} resolved to {real_file}")
+            raise HTTPException(status_code=403, detail="Accesso non consentito")
         return FileResponse(
-            content.file_path,
+            real_file,
             filename=content.file_name or "download",
             media_type="application/octet-stream",
         )

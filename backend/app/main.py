@@ -10,12 +10,27 @@ from slowapi.errors import RateLimitExceeded
 from PIL import Image as PILImage
 import io
 
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from .database import engine, Base
 from .routes import contents, files, comments, script_briefs, dev_tasks, popups, notifications
 from .auth import create_token, verify_password, USERS, get_current_user, CurrentUser
 
 import logging
 from sqlalchemy import text, inspect
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add standard security headers to all responses."""
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+        if os.getenv("MERCURIO_ENV") == "production":
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +165,9 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
         content={"detail": "Troppe richieste. Riprova tra poco."},
     )
 
+
+# Security headers (added before CORS so it runs after CORS in the middleware stack)
+app.add_middleware(SecurityHeadersMiddleware)
 
 # CORS
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173").split(",")

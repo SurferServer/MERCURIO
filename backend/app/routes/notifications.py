@@ -13,7 +13,10 @@ from sqlalchemy import func
 
 from ..database import get_db
 from ..models import MarketingNotification, Content, SourceEnum, StatusEnum
-from ..auth import get_current_user, CurrentUser
+from ..auth import get_current_user, require_role, CurrentUser
+
+# Only admin and marketing can manage notifications
+_require_admin_or_marketing = require_role("admin", "marketing")
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
@@ -23,7 +26,7 @@ def get_unread_count(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ):
-    """Return unread marketing notification count. Available to all users."""
+    """Return unread marketing notification count. Available to all authenticated users (badge)."""
     count = (
         db.query(func.count(MarketingNotification.id))
         .filter(MarketingNotification.read_at.is_(None))
@@ -35,9 +38,9 @@ def get_unread_count(
 @router.get("/marketing")
 def list_notifications(
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(_require_admin_or_marketing),
 ):
-    """List marketing notifications with content details, newest first."""
+    """List marketing notifications with content details, newest first. Admin and marketing only."""
     rows = (
         db.query(MarketingNotification, Content)
         .join(Content, Content.id == MarketingNotification.content_id)
@@ -66,9 +69,9 @@ def list_notifications(
 @router.post("/marketing/read-all")
 def mark_all_read(
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(_require_admin_or_marketing),
 ):
-    """Mark all unread marketing notifications as read."""
+    """Mark all unread marketing notifications as read. Admin and marketing only."""
     now = datetime.now(timezone.utc)
     updated = (
         db.query(MarketingNotification)
@@ -83,9 +86,9 @@ def mark_all_read(
 def mark_one_read(
     notif_id: int,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(_require_admin_or_marketing),
 ):
-    """Mark a single notification as read."""
+    """Mark a single notification as read. Admin and marketing only."""
     notif = db.query(MarketingNotification).filter(MarketingNotification.id == notif_id).first()
     if notif and not notif.read_at:
         notif.read_at = datetime.now(timezone.utc)

@@ -263,7 +263,7 @@ def export_excel(
     channel: Optional[str] = None,
     source: Optional[str] = None,
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(require_admin),
 ):
     from fastapi.responses import StreamingResponse
     from openpyxl import Workbook
