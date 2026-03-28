@@ -299,12 +299,20 @@ if _dist_path:
         app.mount("/assets", StaticFiles(directory=_assets_path), name="assets")
 
     # SPA catch-all: any non-API route returns index.html
+    _index_html = os.path.join(_dist_path, "index.html")
+
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         file_path = os.path.realpath(os.path.join(_dist_path, full_path))
         # Security: prevent path traversal outside dist directory
         if not file_path.startswith(_dist_path):
-            return FileResponse(os.path.join(_dist_path, "index.html"))
+            return FileResponse(
+                _index_html,
+                headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+            )
         if os.path.isfile(file_path):
             return FileResponse(file_path)
-        return FileResponse(os.path.join(_dist_path, "index.html"))
+        return FileResponse(
+            _index_html,
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+        )
