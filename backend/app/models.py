@@ -157,6 +157,16 @@ class DailyPopup(Base):
                         onupdate=lambda: datetime.now(timezone.utc))
 
 
+class MarketingNotification(Base):
+    """Tracks completed marketing-sourced content as notifications for the marketing user."""
+    __tablename__ = "marketing_notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    content_id = Column(Integer, ForeignKey("contents.id"), nullable=False, unique=True, index=True)
+    read_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class Comment(Base):
     __tablename__ = "comments"
 

@@ -10,7 +10,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..database import get_db
-from ..models import Content, Activity, ScriptBrief, StatusEnum, BrandEnum, ContentTypeEnum, ChannelEnum, SourceEnum, AssigneeEnum
+from ..models import Content, Activity, ScriptBrief, MarketingNotification, StatusEnum, BrandEnum, ContentTypeEnum, ChannelEnum, SourceEnum, AssigneeEnum
 from ..services.drive_service import upload_script_text_to_drive
 from ..schemas import ContentCreate, ContentUpdate, ContentResponse, StatsResponse, BrandSummary, ActivityResponse
 from ..auth import get_current_user, require_admin, require_editor, require_any, CurrentUser
@@ -639,6 +639,14 @@ def update_content(
             "archiviato": "Archiviato",
         }
         db.add(Activity(content_id=content.id, action=f"Stato → {status_labels.get(data.status, data.status)} ({user.name})"))
+
+        # Create marketing notification when a marketing-sourced task is completed
+        if data.status == "completato" and content.source == SourceEnum.MARKETING:
+            existing = db.query(MarketingNotification).filter(
+                MarketingNotification.content_id == content.id
+            ).first()
+            if not existing:
+                db.add(MarketingNotification(content_id=content.id))
     new_assignee = data.assigned_to if data.assigned_to is not None else None
     if new_assignee and new_assignee != old_assignee:
         db.add(Activity(content_id=content.id, action=f"Assegnato a {new_assignee.capitalize()} ({user.name})"))

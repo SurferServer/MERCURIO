@@ -201,4 +201,10 @@ export const api = {
     a.click()
     URL.revokeObjectURL(url)
   },
+
+  // ── Marketing notifications ──
+  getMarketingNotifCount: () => get('/notifications/marketing/count'),
+  listMarketingNotifs: () => get('/notifications/marketing'),
+  markAllNotifsRead: () => post('/notifications/marketing/read-all'),
+  markNotifRead: (id) => post(`/notifications/marketing/${id}/read`),
 }

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, Columns3, Archive, Image, LogOut, FileText, CalendarDays, MessageSquare } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, Columns3, Archive, Image, LogOut, FileText, CalendarDays, MessageSquare, Bell } from 'lucide-react'
 import { useUser } from './context/UserContext'
-import { setAuthToken } from './api/client'
+import { setAuthToken, api } from './api/client'
 import UserPicker from './components/UserPicker'
+import MarketingNotifPanel from './components/MarketingNotifPanel'
 import HalftoneBackground from './components/HalftoneBackground'
 import Dashboard from './components/Dashboard'
 import CreateContent from './components/CreateContent'
@@ -43,6 +44,8 @@ function SidebarAvatar({ userId, user }) {
 export default function App() {
   const { user, userId, isAdmin, isMarketing, logout, token } = useUser()
   const [toast, setToast] = useState(null)
+  const [mktNotifCount, setMktNotifCount] = useState(0)
+  const [showNotifPanel, setShowNotifPanel] = useState(false)
 
   // Sync auth token with API client whenever it changes
   useEffect(() => {
@@ -58,6 +61,19 @@ export default function App() {
     window.addEventListener('mercurio:unauthorized', handler)
     return () => window.removeEventListener('mercurio:unauthorized', handler)
   }, [logout])
+
+  // Poll marketing notification count
+  useEffect(() => {
+    if (!token || !isMarketing) return
+    const fetchCount = () => {
+      api.getMarketingNotifCount()
+        .then(data => setMktNotifCount(data.unread_count || 0))
+        .catch(() => {})
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 60000)
+    return () => clearInterval(interval)
+  }, [token, isMarketing])
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type })
@@ -118,6 +134,29 @@ export default function App() {
                 {label}
               </NavLink>
             ))}
+
+            {/* Marketing notification bell */}
+            {isMarketing && (
+              <button
+                onClick={() => setShowNotifPanel(true)}
+                className="flex items-center gap-3 px-6 py-3 text-sm transition-colors border-l-[3px] border-transparent text-white/50 hover:bg-white/5 hover:text-white/80 w-full relative"
+              >
+                <div className="relative">
+                  <Bell size={18} />
+                  {mktNotifCount > 0 && (
+                    <span className="absolute -top-1.5 -right-2 min-w-[18px] h-[18px] flex items-center justify-center px-1 bg-purple-500 text-white text-[10px] font-bold rounded-full animate-pulse">
+                      {mktNotifCount > 99 ? '99+' : mktNotifCount}
+                    </span>
+                  )}
+                </div>
+                Task completati
+                {mktNotifCount > 0 && (
+                  <span className="ml-auto bg-purple-500/20 text-purple-300 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {mktNotifCount}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* Admin-only: Popup management links */}
             {isAdmin && (
@@ -187,6 +226,14 @@ export default function App() {
 
         {/* Daily popup for collaborators — shows once per day on first login */}
         {isCollaborator && <DailyPopupModal />}
+
+        {/* Marketing notification panel */}
+        {showNotifPanel && (
+          <MarketingNotifPanel
+            onClose={() => setShowNotifPanel(false)}
+            onCountUpdate={setMktNotifCount}
+          />
+        )}
 
         {toast && <Toast message={toast.msg} type={toast.type} />}
       </div>
