@@ -82,8 +82,10 @@ class ContentUpdate(BaseModel):
     def drive_link_valid(cls, v):
         if v and len(v) > 500:
             raise ValueError('Il link Drive non può superare i 500 caratteri')
-        if v and not (v.startswith('https://') or v.startswith('http://')):
+        if v and not v.startswith('https://'):
             raise ValueError('Il link Drive deve iniziare con https://')
+        if v and 'drive.google.com' not in v and 'docs.google.com' not in v:
+            raise ValueError('Il link deve essere un URL di Google Drive')
         return v
 
 

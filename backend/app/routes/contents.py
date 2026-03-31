@@ -1,6 +1,7 @@
 import csv
 import io
 import os
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File
@@ -10,10 +11,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from ..database import get_db
-from ..models import Content, Activity, ScriptBrief, MarketingNotification, StatusEnum, BrandEnum, ContentTypeEnum, ChannelEnum, SourceEnum, AssigneeEnum
-from ..services.drive_service import upload_script_text_to_drive
+from ..models import Content, Activity, ContentFile, ScriptBrief, MarketingNotification, StatusEnum, BrandEnum, ContentTypeEnum, ChannelEnum, SourceEnum, AssigneeEnum
+from ..services.drive_service import upload_script_text_to_drive, delete_from_drive
 from ..schemas import ContentCreate, ContentUpdate, ContentResponse, StatsResponse, BrandSummary, ActivityResponse
 from ..auth import get_current_user, require_admin, require_editor, require_any, CurrentUser
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/contents", tags=["contents"])
 limiter = Limiter(key_func=get_remote_address)
@@ -679,6 +682,20 @@ def delete_content(
             status_code=403,
             detail="Non puoi eliminare un contenuto già completato o archiviato",
         )
+
+    # Clean up files from Google Drive before deleting the DB record
+    file_versions = db.query(ContentFile).filter(ContentFile.content_id == content_id).all()
+    drive_ids_to_delete = {cf.drive_file_id for cf in file_versions if cf.drive_file_id}
+    if content.drive_file_id:
+        drive_ids_to_delete.add(content.drive_file_id)
+    for drive_id in drive_ids_to_delete:
+        try:
+            delete_from_drive(drive_id)
+        except Exception as e:
+            logger.warning(f"Failed to delete Drive file {drive_id}: {e}")
+
+    # Delete file version records
+    db.query(ContentFile).filter(ContentFile.content_id == content_id).delete()
 
     db.delete(content)
     db.commit()

@@ -18,9 +18,11 @@ import re
 import logging
 import mimetypes
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from fastapi.responses import FileResponse, Response
 from sqlalchemy.orm import Session
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 
 from ..database import get_db
 from ..models import Content, ContentFile
@@ -29,18 +31,20 @@ from ..services.thumbnail_service import generate_thumbnail_from_bytes, THUMB_DI
 from ..services.drive_service import (
     upload_to_drive,
     download_from_drive,
+    delete_from_drive,
     is_configured as drive_is_configured,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/files", tags=["files"])
+limiter = Limiter(key_func=get_remote_address)
 
 # Thumbnails still stored locally (small JPEGs, regenerable)
 os.makedirs(THUMB_DIR, exist_ok=True)
 
 # ── Security: file validation ────────────────────────────
-MAX_FILE_SIZE_MB = int(os.getenv("MERCURIO_MAX_UPLOAD_MB", "500"))
+MAX_FILE_SIZE_MB = int(os.getenv("MERCURIO_MAX_UPLOAD_MB", "50"))
 MAX_FILE_SIZE = MAX_FILE_SIZE_MB * 1024 * 1024
 
 ALLOWED_EXTENSIONS = {
@@ -57,6 +61,48 @@ ALLOWED_EXTENSIONS = {
 }
 
 SAFE_FILENAME_RE = re.compile(r'[^\w\s\-.]', re.UNICODE)
+
+# Magic bytes for common file types (first N bytes → expected extensions)
+MAGIC_BYTES = {
+    b'\xff\xd8\xff': {".jpg", ".jpeg"},           # JPEG
+    b'\x89PNG\r\n\x1a\n': {".png"},               # PNG
+    b'GIF87a': {".gif"}, b'GIF89a': {".gif"},      # GIF
+    b'RIFF': {".webp", ".avi"},                     # WEBP/AVI (need further check)
+    b'PK': {".zip", ".docx", ".xlsx", ".pptx", ".rar"},  # ZIP-based formats
+    b'%PDF': {".pdf"},                              # PDF
+    b'\x00\x00\x00': {".mp4", ".mov", ".mkv"},     # MP4/MOV (ftyp box)
+}
+
+
+async def _read_file_chunked(file: UploadFile, max_size: int) -> bytes:
+    """Read an UploadFile in chunks, raising 413 if it exceeds max_size.
+    Prevents loading arbitrarily large files into memory before checking size."""
+    chunks = []
+    total = 0
+    chunk_size = 256 * 1024  # 256 KB per chunk
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_size:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File troppo grande. Massimo consentito: {max_size // (1024 * 1024)}MB"
+            )
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
+def _validate_magic_bytes(file_data: bytes, extension: str) -> bool:
+    """Validate that file content matches its declared extension via magic bytes.
+    Returns True if valid or if extension is not in the magic bytes table (permissive)."""
+    for magic, allowed_exts in MAGIC_BYTES.items():
+        if file_data[:len(magic)] == magic:
+            # Found a matching magic — extension must be in allowed set
+            return extension in allowed_exts
+    # No magic matched — allow (some formats like .svg, .bmp, .psd lack simple magic)
+    return True
 
 
 def sanitize_filename(name: str) -> str:
@@ -101,7 +147,9 @@ def drive_status(user: "CurrentUser" = Depends(require_admin)):
 
 # ── Upload ───────────────────────────────────────────────
 @router.post("/{content_id}/upload")
+@limiter.limit("30/minute")
 async def upload_file(
+    request: Request,
     content_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
@@ -112,18 +160,21 @@ async def upload_file(
     if not content:
         raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
-    # Validate
+    # Validate extension
     validate_file(file)
 
-    # Read file bytes
-    file_data = await file.read()
-    if len(file_data) > MAX_FILE_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"File troppo grande. Massimo consentito: {MAX_FILE_SIZE_MB}MB"
-        )
+    # Read file bytes in chunks (prevents OOM on oversized uploads)
+    file_data = await _read_file_chunked(file, MAX_FILE_SIZE)
 
     original_name = sanitize_filename(file.filename)
+
+    # Validate magic bytes match extension
+    ext = os.path.splitext(original_name)[1].lower()
+    if not _validate_magic_bytes(file_data, ext):
+        raise HTTPException(
+            status_code=400,
+            detail="Il contenuto del file non corrisponde all'estensione dichiarata"
+        )
 
     # Detect MIME type
     mime_type = file.content_type or mimetypes.guess_type(original_name)[0] or "application/octet-stream"
@@ -197,7 +248,9 @@ async def upload_file(
 
 # ── Multi-upload (multiple files → same Drive folder) ───
 @router.post("/{content_id}/upload-multi")
+@limiter.limit("10/minute")
 async def upload_multi(
+    request: Request,
     content_id: int,
     files: list[UploadFile] = File(...),
     db: Session = Depends(get_db),
@@ -208,6 +261,23 @@ async def upload_multi(
     if not content:
         raise HTTPException(status_code=404, detail="Contenuto non trovato")
 
+    # Limit: max 20 files per upload request
+    MAX_FILES_PER_UPLOAD = 20
+    if len(files) > MAX_FILES_PER_UPLOAD:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Massimo {MAX_FILES_PER_UPLOAD} file per richiesta"
+        )
+
+    # Check total file count for this content
+    MAX_FILES_PER_CONTENT = 50
+    existing_count = db.query(ContentFile).filter(ContentFile.content_id == content_id).count()
+    if existing_count + len(files) > MAX_FILES_PER_CONTENT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Questo contenuto ha già {existing_count} file. Massimo consentito: {MAX_FILES_PER_CONTENT}"
+        )
+
     results = []
     first_thumb = None
     first_drive_link = None
@@ -217,8 +287,9 @@ async def upload_multi(
 
     for file in files:
         validate_file(file)
-        file_data = await file.read()
-        if len(file_data) > MAX_FILE_SIZE:
+        try:
+            file_data = await _read_file_chunked(file, MAX_FILE_SIZE)
+        except HTTPException:
             results.append({"file_name": file.filename, "error": f"Troppo grande (max {MAX_FILE_SIZE_MB}MB)"})
             continue
 
@@ -237,8 +308,8 @@ async def upload_multi(
                 existing_folder_id=folder_id,
             )
         except Exception as e:
-            logger.error(f"Multi-upload Drive error for {original_name}: {e}")
-            results.append({"file_name": original_name, "error": str(e)})
+            logger.error(f"Multi-upload Drive error for {original_name}: {e}", exc_info=True)
+            results.append({"file_name": original_name, "error": "Errore durante il caricamento su Drive"})
             continue
 
         if not result:

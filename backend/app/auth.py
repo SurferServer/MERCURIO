@@ -12,11 +12,11 @@ Passwords are read from environment variables:
 
 import os
 import secrets
-import hashlib
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+import bcrypt
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -25,11 +25,18 @@ import jwt
 logger = logging.getLogger(__name__)
 
 # ── Secret key ────────────────────────────────────────────
-# In production, always set MERCURIO_JWT_SECRET as env variable.
+# In production, MERCURIO_JWT_SECRET MUST be set as env variable.
 JWT_SECRET = os.getenv("MERCURIO_JWT_SECRET", "")
+_is_production = os.getenv("MERCURIO_ENV") == "production"
 if not JWT_SECRET:
+    if _is_production:
+        raise RuntimeError(
+            "MERCURIO_JWT_SECRET non configurato! "
+            "In produzione questa variabile è obbligatoria."
+        )
     # Generate a random secret at startup (safe for single-instance dev)
     JWT_SECRET = secrets.token_hex(32)
+    logger.warning("JWT secret generato casualmente — i token non sopravvivranno al restart")
 
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("MERCURIO_JWT_EXPIRE_HOURS", "24"))
@@ -55,13 +62,32 @@ def _get_user_password(user_id: str) -> Optional[str]:
 def verify_password(user_id: str, password: str) -> bool:
     """
     Verify a password for a given user.
-    Uses timing-safe comparison to prevent timing attacks.
+    Supports both bcrypt hashes (recommended) and plaintext (legacy).
+    Bcrypt hashes start with '$2b$' — everything else is treated as plaintext
+    with timing-safe comparison.
     """
     expected = _get_user_password(user_id)
     if not expected:
         logger.warning(f"No password configured for user '{user_id}' (missing env var MERCURIO_PASS_{user_id.upper()})")
         return False
-    # Timing-safe comparison
+
+    # Bcrypt hash detection: hashes start with $2b$, $2a$, or $2y$
+    if expected.startswith(("$2b$", "$2a$", "$2y$")):
+        try:
+            return bcrypt.checkpw(
+                password.encode("utf-8"),
+                expected.encode("utf-8"),
+            )
+        except Exception as e:
+            logger.error(f"Bcrypt verification failed for user '{user_id}': {e}")
+            return False
+
+    # Legacy plaintext comparison (timing-safe)
+    if _is_production:
+        logger.warning(
+            f"User '{user_id}' uses plaintext password — "
+            f"genera un hash con: python -c \"import bcrypt; print(bcrypt.hashpw(b'PASSWORD', bcrypt.gensalt()).decode())\""
+        )
     return secrets.compare_digest(password, expected)
 
 

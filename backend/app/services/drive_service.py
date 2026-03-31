@@ -111,6 +111,16 @@ def _find_or_create_folder(service, name: str, parent_id: str) -> str:
     return folder["id"]
 
 
+def _reset_on_auth_error(exc: Exception):
+    """Reset cached Drive service if the error looks like an auth/token problem."""
+    global _drive_service
+    err_str = str(exc).lower()
+    auth_keywords = ("invalid_grant", "token", "credentials", "unauthorized", "403", "401", "refresh")
+    if any(kw in err_str for kw in auth_keywords):
+        logger.warning("Drive auth error detected — resetting cached service for re-initialization")
+        _drive_service = None
+
+
 def is_configured() -> bool:
     """Check if Drive integration is properly configured."""
     return _get_drive_service() is not None
@@ -183,6 +193,8 @@ def upload_to_drive(
 
     except Exception as e:
         logger.error(f"Drive upload failed for {file_name}: {e}", exc_info=True)
+        # Reset cached service on auth errors so next call re-initializes
+        _reset_on_auth_error(e)
         raise RuntimeError(f"Drive upload: {e}") from e
 
 
@@ -270,6 +282,7 @@ def download_from_drive(drive_file_id: str) -> Optional[Tuple[bytes, str]]:
 
     except Exception as e:
         logger.error(f"Drive download failed for {drive_file_id}: {e}", exc_info=True)
+        _reset_on_auth_error(e)
         return None
 
 
@@ -285,4 +298,5 @@ def delete_from_drive(drive_file_id: str) -> bool:
         return True
     except Exception as e:
         logger.error(f"Drive delete failed for {drive_file_id}: {e}", exc_info=True)
+        _reset_on_auth_error(e)
         return False
